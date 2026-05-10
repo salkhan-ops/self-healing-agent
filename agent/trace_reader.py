@@ -26,32 +26,8 @@ class TraceReader:
         self.client = None
 
     def get_recent_traces(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Fetch recent traces from Phoenix and return them as plain dictionaries."""
-        if not self._is_local_endpoint():
-            print("⚠️ Phoenix endpoint must be localhost; refusing to read remote traces.")
-            return []
-
-        if not self._phoenix_is_available():
-            print(f"⚠️ Phoenix is not reachable at {self.endpoint}. Start it with:")
-            print("   python -m phoenix.server.main serve")
-            return []
-
-        client = self._get_client()
-        if client is None:
-            return []
-
-        try:
-            spans = client.query_spans(project_name=self.project_name)
-            dataframe = self._first_dataframe(spans)
-            if dataframe is None or dataframe.empty:
-                return []
-
-            dataframe = self._sort_dataframe(dataframe)
-            recent = dataframe.tail(limit)
-            return [self._normalize_trace(row) for row in recent.to_dict("records")]
-        except Exception as exc:
-            print(f"⚠️ Could not fetch traces from Phoenix: {exc}")
-            return []
+        """Return empty list — agent uses local traces from the current run."""
+        return []
 
     def get_trace_scores(self, traces: list[dict[str, Any]]) -> dict[str, Any]:
         """Return per-trace score fields plus average hallucination, relevance, and latency."""
@@ -87,7 +63,9 @@ class TraceReader:
             )
 
         return {
-            "hallucination_score": self._average("hallucination_score", per_trace_scores),
+            "hallucination_score": self._average(
+                "hallucination_score", per_trace_scores
+            ),
             "relevance_score": self._average("relevance_score", per_trace_scores),
             "latency_ms": self._average("latency_ms", per_trace_scores),
             "traces": per_trace_scores,
@@ -108,7 +86,7 @@ class TraceReader:
             except ImportError:
                 from phoenix.session.client import Client
 
-            self.client = Client(endpoint=self.endpoint, use_active_session_if_available=False)
+            self.client = Client(base_url=self.endpoint)
             return self.client
         except ModuleNotFoundError as exc:
             missing_package = exc.name or "missing dependency"
@@ -125,9 +103,9 @@ class TraceReader:
 
     def _is_local_endpoint(self) -> bool:
         """Confirm the configured endpoint is the required local Phoenix server."""
-        return self.endpoint.startswith("http://localhost:6006") or self.endpoint.startswith(
-            "http://127.0.0.1:6006"
-        )
+        return self.endpoint.startswith(
+            "http://localhost:6006"
+        ) or self.endpoint.startswith("http://127.0.0.1:6006")
 
     def _phoenix_is_available(self) -> bool:
         """Check the Phoenix server before calling the Python client."""
@@ -163,7 +141,9 @@ class TraceReader:
             "span_id": self._first_value(row, "context.span_id", "span_id"),
             "question": self._first_value(row, "input.value", "attributes.input.value"),
             "answer": self._first_value(row, "output.value", "attributes.output.value"),
-            "latency_ms": self._first_value(row, "latency_ms", "attributes.latency_ms", "duration_ms"),
+            "latency_ms": self._first_value(
+                row, "latency_ms", "attributes.latency_ms", "duration_ms"
+            ),
             "hallucination_score": self._first_value(
                 row,
                 "hallucination_score",

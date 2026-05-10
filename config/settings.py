@@ -11,7 +11,6 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-
 load_dotenv()  # Load values from .env into the process environment.
 
 
@@ -47,7 +46,9 @@ def _local_phoenix_endpoint() -> str:
     parsed = urlparse(endpoint)
 
     if parsed.hostname not in {"localhost", "127.0.0.1"}:
-        print("⚠️ PHOENIX_COLLECTOR_ENDPOINT must be local; using http://localhost:6006.")
+        print(
+            "⚠️ PHOENIX_COLLECTOR_ENDPOINT must be local; using http://localhost:6006."
+        )
         return "http://localhost:6006"
 
     return endpoint.rstrip("/")  # Keep generated API URLs predictable.
@@ -60,7 +61,7 @@ PHOENIX_PROJECT_NAME = os.getenv("PHOENIX_PROJECT_NAME", "self-healing-agent")
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
-GEMINI_MODEL_NAME = "gemini-2.0-flash-exp"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 HALLUCINATION_THRESHOLD = _get_float_env("HALLUCINATION_THRESHOLD", 0.4)
 RELEVANCE_THRESHOLD = _get_float_env("RELEVANCE_THRESHOLD", 0.6)

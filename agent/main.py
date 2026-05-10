@@ -30,7 +30,6 @@ from config.settings import (
     RELEVANCE_THRESHOLD,
 )
 
-
 SEPARATOR = "─────────────────────────────────────"
 
 
@@ -42,7 +41,9 @@ def main() -> None:
     print("🚀 Self-Healing Agent Starting...")
     questions = load_questions(PROJECT_ROOT / "data" / "faq.txt")
     print(f"📚 Loading FAQ knowledge base... ({len(questions)} Q&As loaded)")
-    print(f"🔌 Connecting to Phoenix at {PHOENIX_COLLECTOR_ENDPOINT}... {phoenix_status()}")
+    print(
+        f"🔌 Connecting to Phoenix at {PHOENIX_COLLECTOR_ENDPOINT}... {phoenix_status()}"
+    )
 
     round_questions = questions[:10]
     agent = TaskAgent(faq_path=PROJECT_ROOT / "data" / "faq.txt")
@@ -108,7 +109,9 @@ def main() -> None:
     print("📄 INCIDENT REPORT GENERATED")
     print(SEPARATOR)
     reporter = Reporter(reports_dir=reports_dir)
-    report = reporter.generate(evaluation, root_cause, verification, old_prompt, new_prompt)
+    report = reporter.generate(
+        evaluation, root_cause, verification, old_prompt, new_prompt
+    )
     reporter.send_to_slack(report)
     print(report.content)
     print(f"Report saved to: {report.file_path}")
@@ -153,7 +156,9 @@ def run_question_round(agent: TaskAgent, questions: list[str]) -> list[dict[str,
             answer = "I don't know based on the FAQ."
 
         latency_ms = int((time.perf_counter() - started_at) * 1000)
-        traces.append({"question": question, "answer": answer, "latency_ms": latency_ms})
+        traces.append(
+            {"question": question, "answer": answer, "latency_ms": latency_ms}
+        )
         print(f"Q{index}: {question} → Answered ✅")
 
     return traces
@@ -176,7 +181,9 @@ def verify_with_progress(
 
 def print_score_block(evaluation: EvaluationResult) -> None:
     """Print evaluation metrics with threshold markers."""
-    hallucination_icon = "⚠️" if evaluation.hallucination_score > HALLUCINATION_THRESHOLD else "✅"
+    hallucination_icon = (
+        "⚠️" if evaluation.hallucination_score > HALLUCINATION_THRESHOLD else "✅"
+    )
     relevance_icon = "⚠️" if evaluation.relevance_score < RELEVANCE_THRESHOLD else "✅"
     latency_icon = "⚠️" if evaluation.latency_ms > LATENCY_THRESHOLD_MS else "✅"
 
