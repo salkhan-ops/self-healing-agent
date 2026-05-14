@@ -1,0 +1,224 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../core/api_client.dart';
+import '../core/theme.dart';
+
+class Sidebar extends StatefulWidget {
+  const Sidebar({super.key});
+
+  @override
+  State<Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<Sidebar> {
+  final _apiClient = ApiClient();
+  Timer? _timer;
+  bool _phoenixConnected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _checkStatus());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _apiClient.close();
+    super.dispose();
+  }
+
+  Future<void> _checkStatus() async {
+    final status = await _apiClient.getAgentStatus();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _phoenixConnected = status['error'] != true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+
+    return Container(
+      width: 240,
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.auto_fix_high, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Self-Healing Agent',
+                  maxLines: 2,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          _SidebarItem(
+            icon: Icons.home_rounded,
+            label: 'Dashboard',
+            path: '/',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.chat_bubble_outline,
+            label: 'Chat Demo',
+            path: '/chat',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.query_stats,
+            label: 'Investment Analyst',
+            path: '/investment',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.show_chart_rounded,
+            label: 'Charts',
+            path: '/charts',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.description_rounded,
+            label: 'Reports',
+            path: '/reports',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.schedule_rounded,
+            label: 'Scheduler',
+            path: '/scheduler',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.tune_rounded,
+            label: 'Agent Control',
+            path: '/agent',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.settings_rounded,
+            label: 'Settings',
+            path: '/settings',
+            activePath: location,
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: _phoenixConnected
+                        ? AppColors.success
+                        : AppColors.danger,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _phoenixConnected ? 'Phoenix connected' : 'Phoenix offline',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.path,
+    required this.activePath,
+  });
+
+  final IconData icon;
+  final String label;
+  final String path;
+  final String activePath;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = path == '/'
+        ? activePath == '/'
+        : activePath.startsWith(path);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => context.go(path),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: active
+                ? AppColors.primary.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: active ? AppColors.primary : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: active ? AppColors.primary : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: active
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

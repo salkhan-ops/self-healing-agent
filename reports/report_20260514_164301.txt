@@ -1,0 +1,22 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-05-14 16:43:01
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Customer Support Agent
+Problem: Self-evaluation found room for prompt improvement
+Root Cause: INCOMPLETE — While the AI's answer accurately provides the information from the 'What is your return policy?' FAQ entry, a comprehensive answer to 'What is your return policy?' would ideally include details from related FAQs such as how to start a return, return shipping costs, and refund processing times. By only providing the basic eligibility criteria, the answer is too vague or incomplete for a user seeking a full understanding of the return policy.
+Fix Applied: Strengthened instructions to avoid guessing and verify answers against the FAQ
+
+BEFORE:
+  Hallucination: 0.00
+  Relevance: 1.00
+  Latency: 2131ms
+
+AFTER:
+  Hallucination: 0.00 (+0%)
+  Relevance: 1.00 (+0%)
+  Latency: 2233ms (-5%)
+
+Improvement: -2%
+Human Action Needed: YES
+Reason: Automated prompt change did not improve scores enough (-2%).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

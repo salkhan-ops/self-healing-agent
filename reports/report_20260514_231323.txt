@@ -1,0 +1,22 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-05-14 23:13:23
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Customer Support Agent
+Problem: Self-evaluation found room for prompt improvement
+Root Cause: INCOMPLETE — The AI provided the exact text from the FAQ entry for 'What is your return policy?'. While this information is accurate, a broad question like 'What is your return policy?' could imply a request for a more comprehensive summary of all return-related details (e.g., return shipping costs, refund timelines, or exchange policy) from across the FAQ, which the AI did not provide.
+Fix Applied: Rewrote the system prompt to better address the detected root cause
+
+BEFORE:
+  Hallucination: 0.00
+  Relevance: 1.00
+  Latency: 2117ms
+
+AFTER:
+  Hallucination: 0.00 (+0%)
+  Relevance: 1.00 (+0%)
+  Latency: 2130ms (-1%)
+
+Improvement: -0%
+Human Action Needed: YES
+Reason: Automated prompt change did not improve scores enough (-0%).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

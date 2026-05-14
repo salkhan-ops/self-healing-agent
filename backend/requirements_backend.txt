@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+aiosqlite
+apscheduler
+websockets
+python-dotenv
+pandas
+python-multipart
+httpx

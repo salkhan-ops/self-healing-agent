@@ -1,0 +1,116 @@
+"""Chat API routes for the customer support demo.
+
+This module exposes the live chat endpoints, stores short in-memory session
+history, and broadcasts chat/prompt events to dashboard WebSocket clients.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from backend.services.agent_runner import websocket_manager
+from backend.services.chat_agent import chat_agent
+
+
+router = APIRouter(prefix="/api/chat", tags=["chat"])
+sessions: dict[str, list["ChatMessage"]] = {}
+MAX_SESSION_MESSAGES = 50
+
+
+class ChatRequest(BaseModel):
+    """Incoming chat message request."""
+
+    message: str = Field(min_length=1)
+    session_id: str = ""
+
+
+class ChatResponse(BaseModel):
+    """Chat answer response returned to the dashboard."""
+
+    answer: str
+    latency_ms: int
+    trace_id: str
+    prompt_version: int
+    session_id: str
+
+
+class ChatMessage(BaseModel):
+    """One user or agent message stored in session history."""
+
+    role: Literal["user", "agent"]
+    content: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    latency_ms: int = 0
+    trace_id: str = ""
+
+
+@router.post("/message", response_model=ChatResponse)
+async def send_chat_message(payload: ChatRequest) -> ChatResponse:
+    """Save a user message, get an agent answer, and return response metadata."""
+    session_id = payload.session_id.strip() or uuid.uuid4().hex[:12]
+
+    try:
+        _append_message(
+            session_id,
+            ChatMessage(role="user", content=payload.message),
+        )
+        result = chat_agent.answer(payload.message)
+        prompt_version = int(result.get("prompt_version", chat_agent.prompt_version))
+
+        _append_message(
+            session_id,
+            ChatMessage(
+                role="agent",
+                content=str(result.get("answer", "")),
+                latency_ms=int(result.get("latency_ms", 0)),
+                trace_id=str(result.get("trace_id", "")),
+            ),
+        )
+
+        await websocket_manager.broadcast(f"chat_update:{session_id}:v{prompt_version}")
+        return ChatResponse(
+            answer=str(result.get("answer", "")),
+            latency_ms=int(result.get("latency_ms", 0)),
+            trace_id=str(result.get("trace_id", "")),
+            prompt_version=prompt_version,
+            session_id=session_id,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not process chat message: {exc}") from exc
+
+
+@router.get("/history/{session_id}", response_model=list[ChatMessage])
+async def get_chat_history(session_id: str) -> list[ChatMessage]:
+    """Return the last 20 messages for a chat session."""
+    return sessions.get(session_id, [])[-20:]
+
+
+@router.get("/status")
+async def get_chat_status() -> dict:
+    """Return the singleton chat agent status."""
+    return chat_agent.get_status()
+
+
+@router.post("/reset")
+async def reset_chat() -> dict[str, int | str]:
+    """Reset the chat agent and clear all in-memory sessions."""
+    try:
+        chat_agent.reset()
+        sessions.clear()
+        await websocket_manager.broadcast("chat_reset:v1")
+        return {"status": "reset", "prompt_version": 1}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not reset chat agent: {exc}") from exc
+
+
+def _append_message(session_id: str, message: ChatMessage) -> None:
+    """Append a message and trim old session history."""
+    sessions.setdefault(session_id, []).append(message)
+
+    if len(sessions[session_id]) > MAX_SESSION_MESSAGES:
+        sessions[session_id] = sessions[session_id][-MAX_SESSION_MESSAGES:]
