@@ -29,7 +29,9 @@ from config.settings import (
     HALLUCINATION_THRESHOLD,
     LATENCY_THRESHOLD_MS,
     RELEVANCE_THRESHOLD,
+    USE_GEMINI_META,
 )
+from agent.usage import usage_tracker
 
 
 @dataclass
@@ -53,17 +55,11 @@ class Evaluator:
 
     def score_traces(self, traces: list[dict[str, Any]]) -> EvaluationResult:
         """Score every trace and return average batch metrics."""
-        trace_scores = []
-
-        for trace in traces:
-            try:
-                scores = self._score_with_gemini(trace)
-            except Exception as exc:
-                print(f"⚠️ Gemini evaluation failed; using local scoring. Error: {exc}")
-                scores = self._score_locally(trace)
-
-            scored_trace = {**trace, **scores}
-            trace_scores.append(scored_trace)
+        try:
+            trace_scores = self._score_batch_with_gemini(traces)
+        except Exception as exc:
+            print(f"⚠️ Gemini evaluation failed; using local scoring. Error: {exc}")
+            trace_scores = [{**trace, **self._score_locally(trace)} for trace in traces]
 
         problematic = self.find_problematic_traces(
             trace_scores,
@@ -115,6 +111,10 @@ class Evaluator:
             print("⚠️ GOOGLE_API_KEY is missing; Evaluator will use local scoring.")
             return None
 
+        if not USE_GEMINI_META:
+            print("⚠️ Gemini meta-analysis disabled; Evaluator will use local scoring.")
+            return None
+
         try:
             genai.configure(api_key=GOOGLE_API_KEY)
             return genai.GenerativeModel(model_name=GEMINI_MODEL_NAME)
@@ -122,39 +122,51 @@ class Evaluator:
             print(f"⚠️ Could not initialize Gemini evaluator: {exc}")
             return None
 
-    def _score_with_gemini(self, trace: dict[str, Any]) -> dict[str, float]:
-        """Ask Gemini to score hallucination and relevance as JSON."""
+    def _score_batch_with_gemini(self, traces: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Score a whole batch in one Gemini call, or locally when disabled."""
         if self.model is None:
-            return self._score_locally(trace)
+            return [{**trace, **self._score_locally(trace)} for trace in traces]
 
-        question = trace.get("question") or trace.get("input.value") or ""
-        answer = trace.get("answer") or trace.get("output.value") or ""
+        compact_traces = [
+            {
+                "question": trace.get("question") or trace.get("input.value") or "",
+                "answer": trace.get("answer") or trace.get("output.value") or "",
+            }
+            for trace in traces
+        ]
         prompt = f"""
-You are evaluating a customer support answer against an FAQ.
+You are evaluating customer support answers against an FAQ.
 
 FAQ:
 {self.faq_text}
 
-Question:
-{question}
+Traces:
+{json.dumps(compact_traces, indent=2)}
 
-Answer:
-{answer}
-
-Return only JSON with these numeric fields:
-{{"hallucination_score": 0.0, "relevance_score": 1.0}}
+Return only a JSON array with one object per trace, in the same order:
+[{{"hallucination_score": 0.0, "relevance_score": 1.0}}]
 
 Hallucination score means unsupported or false content, from 0.0 to 1.0.
 Relevance score means how directly the answer addresses the question, from 0.0 to 1.0.
 """.strip()
         response = self.model.generate_content(prompt)
+        usage_tracker.record(response)
         parsed = self._parse_json(getattr(response, "text", ""))
+        if not isinstance(parsed, list) or len(parsed) != len(traces):
+            raise ValueError("Gemini returned an unexpected batch evaluation shape.")
 
-        return {
-            "hallucination_score": self._clamp(parsed.get("hallucination_score", 0.0)),
-            "relevance_score": self._clamp(parsed.get("relevance_score", 0.0)),
-            "latency_ms": self._number(trace.get("latency_ms"), 0.0),
-        }
+        scored_traces = []
+        for trace, raw_scores in zip(traces, parsed):
+            raw_scores = raw_scores if isinstance(raw_scores, dict) else {}
+            scored_traces.append(
+                {
+                    **trace,
+                    "hallucination_score": self._clamp(raw_scores.get("hallucination_score", 0.0)),
+                    "relevance_score": self._clamp(raw_scores.get("relevance_score", 0.0)),
+                    "latency_ms": self._number(trace.get("latency_ms"), 0.0),
+                }
+            )
+        return scored_traces
 
     def _score_locally(self, trace: dict[str, Any]) -> dict[str, float]:
         """Produce simple deterministic scores without making a network call."""
@@ -199,7 +211,7 @@ Relevance score means how directly the answer addresses the question, from 0.0 t
             if line.startswith("A: ")
         ]
 
-    def _parse_json(self, text: str) -> dict[str, Any]:
+    def _parse_json(self, text: str) -> Any:
         """Parse Gemini JSON even if it is wrapped in a Markdown code block."""
         cleaned = text.strip()
         cleaned = re.sub(r"^```(?:json)?", "", cleaned).strip()
@@ -208,7 +220,7 @@ Relevance score means how directly the answer addresses the question, from 0.0 t
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+            match = re.search(r"(\[.*\]|\{.*\})", cleaned, flags=re.DOTALL)
             if not match:
                 return {}
             try:

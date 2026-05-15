@@ -215,6 +215,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     if (cleanText.isEmpty || isLoading) {
       return;
     }
+    if (context.read<AgentProvider>().isRunning &&
+        pendingHealingBaseline == null) {
+      _showHealingInProgressDialog();
+      return;
+    }
     if (pendingHealingBaseline != null &&
         _normalizeQuestion(cleanText) !=
             _normalizeQuestion(
@@ -371,6 +376,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           _InputBar(
             controller: inputController,
             isLoading: isLoading,
+            isHealing:
+                context.watch<AgentProvider>().isRunning &&
+                pendingHealingBaseline == null,
             onReset: resetChat,
             onSend: () => sendMessage(inputController.text),
           ),
@@ -500,6 +508,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showHealingInProgressDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Self-healing in progress'),
+        content: const Text(
+          'Wait until Agent Control updates the prompt. Then replay the last question once to get the before/after comparison.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _saveState() {
     _savedSessionId = sessionId;
     _savedPromptVersion = promptVersion;
@@ -526,7 +552,7 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final agent = context.watch<AgentProvider>();
     return Container(
-      height: 74,
+      constraints: const BoxConstraints(minHeight: 74),
       padding: const EdgeInsets.symmetric(horizontal: 28),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -534,71 +560,92 @@ class _TopBar extends StatelessWidget {
           bottom: BorderSide(color: Theme.of(context).dividerColor),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Customer Support Chat',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-          ),
-          ScaleTransition(
-            scale: badgeScale,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: primary,
-                borderRadius: BorderRadius.circular(999),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 720;
+          final title = Text(
+            'Customer Support Chat',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          );
+          final controls = Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ScaleTransition(
+                scale: badgeScale,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primary,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Prompt v$promptVersion',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
               ),
-              child: Text(
-                'Prompt v$promptVersion',
-                style: const TextStyle(fontWeight: FontWeight.w800),
+              FadeTransition(
+                opacity: pulse,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: const BoxDecoration(
+                    color: success,
+                    shape: BoxShape.circle,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          FadeTransition(
-            opacity: pulse,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: success,
-                shape: BoxShape.circle,
+              Text(
+                selfHealingActive
+                    ? 'Self-Healing Active'
+                    : 'Self-Healing Paused',
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodySmall?.color,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            selfHealingActive ? 'Self-Healing Active' : 'Self-Healing Paused',
-            style: TextStyle(
-              color: Theme.of(context).textTheme.bodySmall?.color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 12),
-          IconButton.outlined(
-            tooltip: 'Run Agent Control',
-            onPressed: agent.isRunning ? null : agent.runNow,
-            style: IconButton.styleFrom(
-              foregroundColor: success,
-              side: BorderSide(color: success.withValues(alpha: 0.7)),
-            ),
-            icon: const Icon(Icons.play_arrow_rounded),
-          ),
-          const SizedBox(width: 6),
-          IconButton.outlined(
-            tooltip: 'Stop Agent Control',
-            onPressed: agent.isRunning && !agent.isStopping
-                ? agent.stopNow
-                : null,
-            style: IconButton.styleFrom(
-              foregroundColor: danger,
-              side: BorderSide(color: danger.withValues(alpha: 0.7)),
-            ),
-            icon: const Icon(Icons.stop_circle_outlined),
-          ),
-        ],
+              IconButton.outlined(
+                tooltip: 'Run Agent Control',
+                onPressed: agent.isRunning ? null : agent.runNow,
+                style: IconButton.styleFrom(
+                  foregroundColor: success,
+                  side: BorderSide(color: success.withValues(alpha: 0.7)),
+                ),
+                icon: const Icon(Icons.play_arrow_rounded),
+              ),
+              IconButton.outlined(
+                tooltip: 'Stop Agent Control',
+                onPressed: agent.isRunning && !agent.isStopping
+                    ? agent.stopNow
+                    : null,
+                style: IconButton.styleFrom(
+                  foregroundColor: danger,
+                  side: BorderSide(color: danger.withValues(alpha: 0.7)),
+                ),
+                icon: const Icon(Icons.stop_circle_outlined),
+              ),
+            ],
+          );
+          return compact
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [title, const SizedBox(height: 8), controls],
+                  ),
+                )
+              : Row(
+                  children: [
+                    Expanded(child: title),
+                    controls,
+                  ],
+                );
+        },
       ),
     );
   }
@@ -1014,12 +1061,14 @@ class _InputBar extends StatelessWidget {
   const _InputBar({
     required this.controller,
     required this.isLoading,
+    required this.isHealing,
     required this.onReset,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final bool isLoading;
+  final bool isHealing;
   final VoidCallback onReset;
   final VoidCallback onSend;
 
@@ -1045,11 +1094,13 @@ class _InputBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
-              enabled: !isLoading,
+              enabled: !isLoading && !isHealing,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => onSend(),
               decoration: InputDecoration(
-                hintText: 'Ask a customer support question...',
+                hintText: isHealing
+                    ? 'Self-healing is updating the prompt...'
+                    : 'Ask a customer support question...',
                 filled: true,
                 fillColor: Theme.of(context).cardColor,
                 border: const OutlineInputBorder(
@@ -1065,7 +1116,7 @@ class _InputBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           IconButton.filled(
-            onPressed: isLoading ? null : onSend,
+            onPressed: isLoading || isHealing ? null : onSend,
             style: IconButton.styleFrom(
               backgroundColor: isLoading ? textSecondary : primary,
               disabledBackgroundColor: textSecondary.withValues(alpha: 0.25),

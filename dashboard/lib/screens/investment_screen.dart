@@ -230,6 +230,11 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   Future<void> sendMessage(String text) async {
     final cleanText = text.trim();
     if (cleanText.isEmpty || isLoading) return;
+    if (context.read<AgentProvider>().isRunning &&
+        pendingHealingBaseline == null) {
+      _showHealingInProgressDialog();
+      return;
+    }
     if (!_hasLoadedContextForSelectedTicker()) {
       _showSecRequiredDialog();
       return;
@@ -421,6 +426,24 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     );
   }
 
+  void _showHealingInProgressDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Self-healing in progress'),
+        content: const Text(
+          'Wait until Agent Control updates the prompt. Then replay the last question once to get the before/after comparison.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> resetInvestmentAgent() async {
     try {
       await http.post(Uri.parse('$apiBase/api/investment/reset'));
@@ -510,78 +533,93 @@ class _InvestmentScreenState extends State<InvestmentScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: [
-                _Header(promptVersion: promptVersion, badgeScale: promptPulse),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  child: showHealingBanner
-                      ? _HealingBanner(text: healingBannerText)
-                      : const SizedBox.shrink(),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                    itemCount: messages.length + (isLoading ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == messages.length) return const _TypingCard();
-                      return _MessageCard(message: messages[index]);
-                    },
-                  ),
-                ),
-                _QuestionChips(
-                  normalQuestions: normalQuestions,
-                  riskyQuestions: riskyQuestions,
-                  hallucinationQuestions: hallucinationQuestions,
-                  initiallyCollapsed: messages.any(
-                    (message) => message['role'] == 'user',
-                  ),
-                  onSelected: sendMessage,
-                ),
-                _InputBar(
-                  controller: inputController,
-                  isLoading: isLoading,
-                  canSend: _hasLoadedContextForSelectedTicker(),
-                  onReset: resetInvestmentAgent,
-                  onSend: () => sendMessage(inputController.text),
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 1180;
+        final conversation = Column(
+          children: [
+            _Header(promptVersion: promptVersion, badgeScale: promptPulse),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              child: showHealingBanner
+                  ? _HealingBanner(text: healingBannerText)
+                  : const SizedBox.shrink(),
             ),
-          ),
-          _AnalystPanel(
-            tickers: tickers,
-            selectedTicker: selectedTicker,
-            promptVersion: promptVersion,
-            secContext: secContext,
-            lastRiskFlags: lastRiskFlags,
-            onTickerChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                selectedTicker = value.trim().toUpperCase();
-                if (selectedTicker.isNotEmpty &&
-                    !tickers.contains(selectedTicker)) {
-                  tickers = [selectedTicker, ...tickers];
-                }
-                _savedSelectedTicker = selectedTicker;
-                _savedTickers = tickers;
-                secContext = _secContextCache[selectedTicker];
-                _savedSecContext = secContext;
-                secContextError = '';
-              });
-            },
-            onLoadSecContext: loadSecContext,
-            isSecLoading: isSecLoading,
-            secContextError: secContextError,
-          ),
-        ],
-      ),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                itemCount: messages.length + (isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == messages.length) return const _TypingCard();
+                  return _MessageCard(message: messages[index]);
+                },
+              ),
+            ),
+            _QuestionChips(
+              normalQuestions: normalQuestions,
+              riskyQuestions: riskyQuestions,
+              hallucinationQuestions: hallucinationQuestions,
+              initiallyCollapsed: messages.any(
+                (message) => message['role'] == 'user',
+              ),
+              onSelected: sendMessage,
+            ),
+            _InputBar(
+              controller: inputController,
+              isLoading: isLoading,
+              isHealing:
+                  context.watch<AgentProvider>().isRunning &&
+                  pendingHealingBaseline == null,
+              canSend: _hasLoadedContextForSelectedTicker(),
+              onReset: resetInvestmentAgent,
+              onSend: () => sendMessage(inputController.text),
+            ),
+          ],
+        );
+        final analystPanel = _AnalystPanel(
+          tickers: tickers,
+          selectedTicker: selectedTicker,
+          promptVersion: promptVersion,
+          secContext: secContext,
+          lastRiskFlags: lastRiskFlags,
+          onTickerChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              selectedTicker = value.trim().toUpperCase();
+              if (selectedTicker.isNotEmpty &&
+                  !tickers.contains(selectedTicker)) {
+                tickers = [selectedTicker, ...tickers];
+              }
+              _savedSelectedTicker = selectedTicker;
+              _savedTickers = tickers;
+              secContext = _secContextCache[selectedTicker];
+              _savedSecContext = secContext;
+              secContextError = '';
+            });
+          },
+          onLoadSecContext: loadSecContext,
+          isSecLoading: isSecLoading,
+          secContextError: secContextError,
+        );
+
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: compact
+              ? Column(
+                  children: [
+                    Expanded(child: conversation),
+                    SizedBox(height: 380, child: analystPanel),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(flex: 3, child: conversation),
+                    SizedBox(width: 330, child: analystPanel),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -751,7 +789,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final agent = context.watch<AgentProvider>();
     return Container(
-      height: 86,
+      constraints: const BoxConstraints(minHeight: 86),
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -759,36 +797,53 @@ class _Header extends StatelessWidget {
           bottom: BorderSide(color: Theme.of(context).dividerColor),
         ),
       ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Investment Analyst',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'SEC-grounded research assistant · Not financial advice',
-                  style: TextStyle(color: textMuted),
-                ),
-              ],
-            ),
-          ),
-          ScaleTransition(
-            scale: badgeScale,
-            child: _Badge(text: 'Prompt v$promptVersion', color: primary),
-          ),
-          const SizedBox(width: 10),
-          const _Badge(text: 'Self-Healing Active', color: success),
-          const SizedBox(width: 10),
-          const _Badge(text: 'SEC Data', color: accent),
-          const SizedBox(width: 10),
-          _AgentRunControls(agent: agent),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+          final title = const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Investment Analyst',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'SEC-grounded research assistant · Not financial advice',
+                style: TextStyle(color: textMuted),
+              ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ScaleTransition(
+                scale: badgeScale,
+                child: _Badge(text: 'Prompt v$promptVersion', color: primary),
+              ),
+              const _Badge(text: 'Self-Healing Active', color: success),
+              const _Badge(text: 'SEC Data', color: accent),
+              _AgentRunControls(agent: agent),
+            ],
+          );
+          return compact
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [title, const SizedBox(height: 10), actions],
+                  ),
+                )
+              : Row(
+                  children: [
+                    Expanded(child: title),
+                    actions,
+                  ],
+                );
+        },
       ),
     );
   }
@@ -1841,6 +1896,7 @@ class _InputBar extends StatelessWidget {
   const _InputBar({
     required this.controller,
     required this.isLoading,
+    required this.isHealing,
     required this.canSend,
     required this.onReset,
     required this.onSend,
@@ -1848,6 +1904,7 @@ class _InputBar extends StatelessWidget {
 
   final TextEditingController controller;
   final bool isLoading;
+  final bool isHealing;
   final bool canSend;
   final VoidCallback onReset;
   final VoidCallback onSend;
@@ -1874,11 +1931,13 @@ class _InputBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
-              enabled: !isLoading,
+              enabled: !isLoading && !isHealing,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => onSend(),
               decoration: InputDecoration(
-                hintText: canSend
+                hintText: isHealing
+                    ? 'Self-healing is updating the prompt...'
+                    : canSend
                     ? 'Ask an SEC-grounded investment research question...'
                     : 'Load SEC context before chatting...',
                 filled: true,
@@ -1896,7 +1955,7 @@ class _InputBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           IconButton.filled(
-            onPressed: isLoading ? null : onSend,
+            onPressed: isLoading || isHealing ? null : onSend,
             style: IconButton.styleFrom(backgroundColor: primary),
             icon: const Icon(Icons.arrow_upward_rounded, color: textMain),
           ),
@@ -1948,7 +2007,7 @@ class _AnalystPanel extends StatelessWidget {
         : 0;
 
     return Container(
-      width: 330,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),

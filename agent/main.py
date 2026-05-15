@@ -23,12 +23,15 @@ from agent.task_agent import TaskAgent
 from agent.trace_reader import TraceReader
 from agent.verifier import VerificationResult, Verifier
 from config.settings import (
+    AGENT_MODE,
     DEFAULT_SYSTEM_PROMPT,
     HALLUCINATION_THRESHOLD,
     LATENCY_THRESHOLD_MS,
     PHOENIX_COLLECTOR_ENDPOINT,
     RELEVANCE_THRESHOLD,
+    GEMINI_MODEL_NAME,
 )
+from agent.usage import usage_tracker
 
 SEPARATOR = "─────────────────────────────────────"
 
@@ -39,6 +42,7 @@ def main() -> None:
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     print("🚀 Self-Healing Agent Starting...")
+    print(f"💸 Cost mode: {AGENT_MODE} | model: {GEMINI_MODEL_NAME}")
     questions = load_questions(PROJECT_ROOT / "data" / "faq.txt")
     print(f"📚 Loading FAQ knowledge base... ({len(questions)} Q&As loaded)")
     print(
@@ -115,6 +119,7 @@ def main() -> None:
     reporter.send_to_slack(report)
     print(report.content)
     print(f"Report saved to: {report.file_path}")
+    print_usage_summary()
 
 
 def load_questions(faq_path: Path) -> list[str]:
@@ -221,6 +226,24 @@ def print_results(verification: VerificationResult) -> None:
         f"Latency:       {before['latency_ms'] / 1000:.1f}s → "
         f"{after['latency_ms'] / 1000:.1f}s  {status_icon(latency_delta)}"
     )
+
+
+def print_usage_summary() -> None:
+    """Print a simple per-run token and cost summary."""
+    totals = usage_tracker.totals
+    billed_output_tokens = totals.output_tokens + totals.thinking_tokens
+    estimated_cost = usage_tracker.estimated_cost_usd(GEMINI_MODEL_NAME)
+
+    print()
+    print(SEPARATOR)
+    print("💸 GEMINI USAGE THIS RUN")
+    print(SEPARATOR)
+    print(f"Requests:       {totals.requests}")
+    print(f"Input tokens:   {totals.input_tokens:,}")
+    print(f"Output tokens:  {totals.output_tokens:,}")
+    print(f"Thinking toks:  {totals.thinking_tokens:,}")
+    print(f"Billed output:  {billed_output_tokens:,}")
+    print(f"Est. cost:      ${estimated_cost:.4f}")
 
 
 def percent_drop(before: float, after: float) -> float:

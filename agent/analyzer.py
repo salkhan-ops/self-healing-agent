@@ -22,7 +22,8 @@ except ImportError as exc:
         "google-generativeai is required. Fix with: pip install google-generativeai"
     ) from exc
 
-from config.settings import GEMINI_MODEL_NAME, GOOGLE_API_KEY
+from config.settings import GEMINI_MODEL_NAME, GOOGLE_API_KEY, USE_GEMINI_META
+from agent.usage import usage_tracker
 
 
 RootCauseCategory = Literal["GUESSING", "IRRELEVANT", "INCOMPLETE", "HALLUCINATION"]
@@ -66,6 +67,10 @@ class RootCauseAnalyzer:
             print("⚠️ GOOGLE_API_KEY is missing; RootCauseAnalyzer will use local analysis.")
             return None
 
+        if not USE_GEMINI_META:
+            print("⚠️ Gemini meta-analysis disabled; RootCauseAnalyzer will use local analysis.")
+            return None
+
         try:
             genai.configure(api_key=GOOGLE_API_KEY)
             return genai.GenerativeModel(model_name=GEMINI_MODEL_NAME)
@@ -97,6 +102,7 @@ Return only JSON:
 {{"category": "GUESSING", "explanation": "Short plain English explanation."}}
 """.strip()
         response = self.model.generate_content(prompt)
+        usage_tracker.record(response)
         parsed = self._parse_json(getattr(response, "text", ""))
         category = self._clean_category(parsed.get("category"))
         explanation = str(parsed.get("explanation") or "").strip()

@@ -47,7 +47,9 @@ from config.settings import (
     PHOENIX_API_KEY,
     PHOENIX_COLLECTOR_ENDPOINT,
     PHOENIX_PROJECT_NAME,
+    USE_GEMINI_ANSWERS,
 )
+from agent.usage import usage_tracker
 
 
 class TaskAgent:
@@ -101,6 +103,10 @@ class TaskAgent:
         """Create a Gemini model, or return None when local config is incomplete."""
         if not GOOGLE_API_KEY:
             print("⚠️ GOOGLE_API_KEY is missing; TaskAgent will use FAQ fallback answers.")
+            return None
+
+        if not USE_GEMINI_ANSWERS:
+            print("⚠️ Gemini answers disabled; TaskAgent will use FAQ fallback answers.")
             return None
 
         try:
@@ -193,6 +199,7 @@ CUSTOMER QUESTION:
 Answer using only the FAQ knowledge base.
 """.strip()
         response = self.model.generate_content(prompt)
+        usage_tracker.record(response)
         text = getattr(response, "text", "").strip()
 
         if not text:

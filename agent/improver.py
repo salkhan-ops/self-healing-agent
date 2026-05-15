@@ -18,7 +18,13 @@ except ImportError as exc:
         "google-generativeai is required. Fix with: pip install google-generativeai"
     ) from exc
 
-from config.settings import GEMINI_MODEL_NAME, GOOGLE_API_KEY, IMPROVED_SYSTEM_PROMPT_TEMPLATE
+from config.settings import (
+    GEMINI_MODEL_NAME,
+    GOOGLE_API_KEY,
+    IMPROVED_SYSTEM_PROMPT_TEMPLATE,
+    USE_GEMINI_META,
+)
+from agent.usage import usage_tracker
 
 
 class PromptImprover:
@@ -47,6 +53,10 @@ class PromptImprover:
         """Create the Gemini model used for prompt rewriting."""
         if not GOOGLE_API_KEY:
             print("⚠️ GOOGLE_API_KEY is missing; PromptImprover will use local prompt rewriting.")
+            return None
+
+        if not USE_GEMINI_META:
+            print("⚠️ Gemini meta-analysis disabled; PromptImprover will use local prompt rewriting.")
             return None
 
         try:
@@ -80,6 +90,7 @@ Rules for the new prompt:
 - Return only the new system prompt text.
 """.strip()
         response = self.model.generate_content(prompt)
+        usage_tracker.record(response)
         return getattr(response, "text", "").strip()
 
     def _improve_locally(self, root_cause: Any) -> str:

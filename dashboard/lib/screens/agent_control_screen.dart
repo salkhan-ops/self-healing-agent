@@ -47,137 +47,155 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
         ? (agent.isStopping ? 'STOPPING' : 'RUNNING')
         : (agent.status['status']?.toString().toUpperCase() ?? 'IDLE');
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 900 || constraints.maxHeight < 720;
+        final lowerContent = compact
+            ? ListView(
+                children: [
+                  SizedBox(
+                    height: 240,
+                    child: _Terminal(lines: agent.liveOutput),
+                  ),
+                  const SizedBox(height: 16),
+                  _thresholds(),
+                  const SizedBox(height: 16),
+                  SizedBox(height: 360, child: _faqEditor()),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(child: _Terminal(lines: agent.liveOutput)),
+                        const SizedBox(height: 16),
+                        _thresholds(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: _faqEditor()),
+                ],
+              );
+
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Agent Control',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: Column(
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: agent.isRunning
+                              ? null
+                              : () => agent.runNow(),
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: const Text('Run Agent Now'),
+                          style: ElevatedButton.styleFrom(
+                            textStyle: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 34,
+                              vertical: 20,
+                            ),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: agent.isRunning && !agent.isStopping
+                              ? () => agent.stopNow()
+                              : null,
+                          icon: const Icon(Icons.stop_circle_outlined),
+                          label: Text(
+                            agent.isStopping ? 'Stopping...' : 'Stop Agent',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.danger,
+                            side: const BorderSide(color: AppColors.danger),
+                            textStyle: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 28,
+                              vertical: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _StatusBadge(label: statusLabel, running: agent.isRunning),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Expanded(child: lowerContent),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _thresholds() => _Thresholds(
+    hallucinationLimit: hallucinationLimit,
+    relevanceMinimum: relevanceMinimum,
+    latencyMaximum: latencyMaximum,
+    onHallucinationChanged: (value) =>
+        setState(() => hallucinationLimit = value),
+    onRelevanceChanged: (value) => setState(() => relevanceMinimum = value),
+    onLatencyChanged: (value) => setState(() => latencyMaximum = value),
+  );
+
+  Widget _faqEditor() => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Agent Control',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+            'FAQ Editor',
+            style: TextStyle(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 20),
-          Center(
-            child: Column(
-              children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: agent.isRunning ? null : () => agent.runNow(),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Run Agent Now'),
-                      style: ElevatedButton.styleFrom(
-                        textStyle: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 34,
-                          vertical: 20,
-                        ),
-                      ),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: agent.isRunning && !agent.isStopping
-                          ? () => agent.stopNow()
-                          : null,
-                      icon: const Icon(Icons.stop_circle_outlined),
-                      label: Text(
-                        agent.isStopping ? 'Stopping...' : 'Stop Agent',
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.danger,
-                        side: const BorderSide(color: AppColors.danger),
-                        textStyle: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 28,
-                          vertical: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _StatusBadge(label: statusLabel, running: agent.isRunning),
-              ],
+          const SizedBox(height: 12),
+          Expanded(
+            child: TextField(
+              controller: _faqController,
+              expands: true,
+              maxLines: null,
+              minLines: null,
+              style: const TextStyle(fontFamily: 'monospace'),
+              decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
           ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(child: _Terminal(lines: agent.liveOutput)),
-                      const SizedBox(height: 16),
-                      _Thresholds(
-                        hallucinationLimit: hallucinationLimit,
-                        relevanceMinimum: relevanceMinimum,
-                        latencyMaximum: latencyMaximum,
-                        onHallucinationChanged: (value) =>
-                            setState(() => hallucinationLimit = value),
-                        onRelevanceChanged: (value) =>
-                            setState(() => relevanceMinimum = value),
-                        onLatencyChanged: (value) =>
-                            setState(() => latencyMaximum = value),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'FAQ Editor',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _faqController,
-                              expands: true,
-                              maxLines: null,
-                              minLines: null,
-                              style: const TextStyle(fontFamily: 'monospace'),
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: ElevatedButton.icon(
-                              onPressed: () =>
-                                  _apiClient.updateFaq(_faqController.text),
-                              icon: const Icon(Icons.save),
-                              label: const Text('Save'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: () => _apiClient.updateFaq(_faqController.text),
+              icon: const Icon(Icons.save),
+              label: const Text('Save'),
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _Terminal extends StatelessWidget {
@@ -290,17 +308,48 @@ class _SliderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(width: 160, child: Text(label)),
-        Expanded(
-          child: Slider(value: value, min: min, max: max, onChanged: onChanged),
-        ),
-        SizedBox(
-          width: 70,
-          child: Text(value.toStringAsFixed(max > 1 ? 0 : 2)),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 360;
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: value,
+                      min: min,
+                      max: max,
+                      onChanged: onChanged,
+                    ),
+                  ),
+                  Text(value.toStringAsFixed(max > 1 ? 0 : 2)),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            SizedBox(width: 160, child: Text(label)),
+            Expanded(
+              child: Slider(
+                value: value,
+                min: min,
+                max: max,
+                onChanged: onChanged,
+              ),
+            ),
+            SizedBox(
+              width: 70,
+              child: Text(value.toStringAsFixed(max > 1 ? 0 : 2)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

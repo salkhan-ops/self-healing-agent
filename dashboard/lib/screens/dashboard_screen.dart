@@ -37,117 +37,143 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final summary = metrics.summary;
     final points = metrics.chartData;
 
-    return _Page(
-      title: 'Dashboard',
-      child: Column(
-        children: [
-          SizedBox(
-            height: 150,
-            child: Row(
-              children: [
-                Expanded(
-                  child: MetricCard(
-                    title: 'Health Score',
-                    value: (summary?.healthScore ?? 0).toStringAsFixed(0),
-                    trend: summary?.healthScore ?? 0,
-                    values: points
-                        .map((point) => point.improvementPercent)
-                        .toList(),
-                    good: (summary?.healthScore ?? 0) >= 70,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: MetricCard(
-                    title: 'Hallucination',
-                    value: (summary?.avgHallucination ?? 0).toStringAsFixed(2),
-                    trend: -12,
-                    values: points.map((point) => point.hallucination).toList(),
-                    good: (summary?.avgHallucination ?? 0) <= 0.4,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: MetricCard(
-                    title: 'Relevance',
-                    value: (summary?.avgRelevance ?? 0).toStringAsFixed(2),
-                    trend: 8,
-                    values: points.map((point) => point.relevance).toList(),
-                    good: (summary?.avgRelevance ?? 0) >= 0.6,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: MetricCard(
-                    title: 'Latency',
-                    value: (summary?.avgLatency ?? 0).toStringAsFixed(0),
-                    suffix: 'ms',
-                    trend: -5,
-                    values: points.map((point) => point.latencyMs).toList(),
-                    good: (summary?.avgLatency ?? 0) <= 3000,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(height: 220, child: _LinePanel(points: points)),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Panel(
-                    title: 'Last Reports',
-                    child: ListView.separated(
-                      itemCount: reports.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final report = reports[index];
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            report.problem,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            report.rootCause,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Text(
-                            '${report.improvementPercent.toStringAsFixed(0)}%',
-                          ),
-                        );
-                      },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 900 || constraints.maxHeight < 720;
+        final content = compact
+            ? ListView(
+                children: [
+                  _metricGrid(summary, points),
+                  const SizedBox(height: 16),
+                  SizedBox(height: 220, child: _LinePanel(points: points)),
+                  const SizedBox(height: 16),
+                  SizedBox(height: 240, child: _reportsPanel(reports)),
+                  const SizedBox(height: 16),
+                  SizedBox(height: 240, child: _liveOutputPanel(agent)),
+                ],
+              )
+            : Column(
+                children: [
+                  SizedBox(height: 150, child: _metricRow(summary, points)),
+                  const SizedBox(height: 16),
+                  SizedBox(height: 220, child: _LinePanel(points: points)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(child: _reportsPanel(reports)),
+                        const SizedBox(width: 16),
+                        Expanded(child: _liveOutputPanel(agent)),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _Panel(
-                    title: 'Live Output',
-                    child: ListView(
-                      children: agent.liveOutput.reversed
-                          .take(40)
-                          .map(
-                            (line) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                line,
-                                style: const TextStyle(color: AppColors.accent),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              );
+
+        return _Page(title: 'Dashboard', child: content);
+      },
+    );
+  }
+
+  Widget _metricGrid(dynamic summary, List<MetricPoint> points) {
+    return Wrap(
+      spacing: 14,
+      runSpacing: 14,
+      children: [
+        for (final card in _metricCards(summary, points))
+          SizedBox(width: 260, height: 150, child: card),
+      ],
+    );
+  }
+
+  Widget _metricRow(dynamic summary, List<MetricPoint> points) {
+    final cards = _metricCards(summary, points);
+    return Row(
+      children: [
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(width: 14),
+          Expanded(child: cards[i]),
         ],
+      ],
+    );
+  }
+
+  List<Widget> _metricCards(dynamic summary, List<MetricPoint> points) => [
+    MetricCard(
+      title: 'Health Score',
+      value: (summary?.healthScore ?? 0).toStringAsFixed(0),
+      trend: summary?.healthScore ?? 0,
+      values: points.map((point) => point.improvementPercent).toList(),
+      good: (summary?.healthScore ?? 0) >= 70,
+    ),
+    MetricCard(
+      title: 'Hallucination',
+      value: (summary?.avgHallucination ?? 0).toStringAsFixed(2),
+      trend: -12,
+      values: points.map((point) => point.hallucination).toList(),
+      good: (summary?.avgHallucination ?? 0) <= 0.4,
+    ),
+    MetricCard(
+      title: 'Relevance',
+      value: (summary?.avgRelevance ?? 0).toStringAsFixed(2),
+      trend: 8,
+      values: points.map((point) => point.relevance).toList(),
+      good: (summary?.avgRelevance ?? 0) >= 0.6,
+    ),
+    MetricCard(
+      title: 'Latency',
+      value: (summary?.avgLatency ?? 0).toStringAsFixed(0),
+      suffix: 'ms',
+      trend: -5,
+      values: points.map((point) => point.latencyMs).toList(),
+      good: (summary?.avgLatency ?? 0) <= 3000,
+    ),
+  ];
+
+  Widget _reportsPanel(List reports) {
+    return _Panel(
+      title: 'Last Reports',
+      child: ListView.separated(
+        itemCount: reports.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final report = reports[index];
+          return ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              report.problem,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              report.rootCause,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Text('${report.improvementPercent.toStringAsFixed(0)}%'),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _liveOutputPanel(AgentProvider agent) {
+    return _Panel(
+      title: 'Live Output',
+      child: ListView(
+        children: agent.liveOutput.reversed
+            .take(40)
+            .map(
+              (line) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  line,
+                  style: const TextStyle(color: AppColors.accent),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }

@@ -51,8 +51,7 @@ class _SidebarState extends State<Sidebar> {
       width: 240,
       color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: ListView(
         children: [
           Row(
             children: [
@@ -125,7 +124,7 @@ class _SidebarState extends State<Sidebar> {
             path: '/settings',
             activePath: location,
           ),
-          const Spacer(),
+          const SizedBox(height: 12),
           _ThemeToggle(
             isDark: themeProvider.isDark,
             onPressed: themeProvider.toggleTheme,

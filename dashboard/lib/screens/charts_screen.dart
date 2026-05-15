@@ -28,67 +28,110 @@ class _ChartsScreenState extends State<ChartsScreen> {
     final provider = context.watch<MetricsProvider>();
     final points = provider.chartData;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Charts',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 20),
-          SegmentedButton<String>(
-            segments: [
-              for (final period in periods)
-                ButtonSegment(
-                  value: period,
-                  label: Text(
-                    '${period[0].toUpperCase()}${period.substring(1)}',
-                  ),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 760;
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Charts',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 20),
+              SegmentedButton<String>(
+                segments: [
+                  for (final period in periods)
+                    ButtonSegment(
+                      value: period,
+                      label: Text(
+                        '${period[0].toUpperCase()}${period.substring(1)}',
+                      ),
+                    ),
+                ],
+                selected: {provider.selectedPeriod},
+                onSelectionChanged: (selection) =>
+                    provider.loadChartData(selection.first),
+              ),
+              const SizedBox(height: 20),
+              _MetricHint(points: points),
+              const SizedBox(height: 14),
+              Expanded(
+                child: compact
+                    ? ListView(
+                        children: [
+                          SizedBox(
+                            height: 240,
+                            child: _Chart(
+                              title: 'Hallucination Rate',
+                              color: AppColors.danger,
+                              values: points
+                                  .map((p) => p.hallucination)
+                                  .toList(),
+                              idealText: 'lower is better',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 240,
+                            child: _Chart(
+                              title: 'Relevance Score',
+                              color: AppColors.accent,
+                              values: points.map((p) => p.relevance).toList(),
+                              idealText: 'higher is better',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 240,
+                            child: _Chart(
+                              title: 'Latency',
+                              color: AppColors.warning,
+                              values: points.map((p) => p.latencyMs).toList(),
+                              idealText: 'milliseconds',
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: _Chart(
+                              title: 'Hallucination Rate',
+                              color: AppColors.danger,
+                              values: points
+                                  .map((p) => p.hallucination)
+                                  .toList(),
+                              idealText: 'lower is better',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: _Chart(
+                              title: 'Relevance Score',
+                              color: AppColors.accent,
+                              values: points.map((p) => p.relevance).toList(),
+                              idealText: 'higher is better',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: _Chart(
+                              title: 'Latency',
+                              color: AppColors.warning,
+                              values: points.map((p) => p.latencyMs).toList(),
+                              idealText: 'milliseconds',
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ],
-            selected: {provider.selectedPeriod},
-            onSelectionChanged: (selection) =>
-                provider.loadChartData(selection.first),
           ),
-          const SizedBox(height: 20),
-          _MetricHint(points: points),
-          const SizedBox(height: 14),
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: _Chart(
-                    title: 'Hallucination Rate',
-                    color: AppColors.danger,
-                    values: points.map((p) => p.hallucination).toList(),
-                    idealText: 'lower is better',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: _Chart(
-                    title: 'Relevance Score',
-                    color: AppColors.accent,
-                    values: points.map((p) => p.relevance).toList(),
-                    idealText: 'higher is better',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: _Chart(
-                    title: 'Latency',
-                    color: AppColors.warning,
-                    values: points.map((p) => p.latencyMs).toList(),
-                    idealText: 'milliseconds',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

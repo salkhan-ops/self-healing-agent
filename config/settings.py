@@ -40,6 +40,15 @@ def _get_int_env(name: str, default: int) -> int:
         return default
 
 
+def _get_bool_env(name: str, default: bool) -> bool:
+    """Read a boolean environment variable with friendly common spellings."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _local_phoenix_endpoint() -> str:
     """Return a Phoenix endpoint, forcing the project to use localhost only."""
     endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006")
@@ -61,7 +70,14 @@ PHOENIX_PROJECT_NAME = os.getenv("PHOENIX_PROJECT_NAME", "self-healing-agent")
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+AGENT_MODE = os.getenv("AGENT_MODE", "cheap").strip().lower()
+if AGENT_MODE not in {"cheap", "full", "local"}:
+    print(f"⚠️ Invalid AGENT_MODE={AGENT_MODE!r}; using 'cheap'.")
+    AGENT_MODE = "cheap"
+
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash-lite")
+USE_GEMINI_ANSWERS = AGENT_MODE != "local" and _get_bool_env("USE_GEMINI_ANSWERS", True)
+USE_GEMINI_META = AGENT_MODE == "full" and _get_bool_env("USE_GEMINI_META", True)
 
 HALLUCINATION_THRESHOLD = _get_float_env("HALLUCINATION_THRESHOLD", 0.4)
 RELEVANCE_THRESHOLD = _get_float_env("RELEVANCE_THRESHOLD", 0.6)

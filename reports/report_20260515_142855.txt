@@ -1,0 +1,22 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-05-15 14:28:55
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Customer Support Agent
+Problem: Self-evaluation found room for prompt improvement
+Root Cause: GUESSING — Agent is adding details that are not clearly supported by the FAQ.
+Fix Applied: Strengthened instructions to avoid guessing and verify answers against the FAQ
+
+BEFORE:
+  Hallucination: 0.00
+  Relevance: 1.00
+  Latency: 2074ms
+
+AFTER:
+  Hallucination: 0.00 (+0%)
+  Relevance: 1.00 (+0%)
+  Latency: 3030ms (-46%)
+
+Improvement: -15%
+Human Action Needed: YES
+Reason: Automated prompt change did not improve scores enough (-15%).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
