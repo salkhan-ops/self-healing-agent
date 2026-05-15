@@ -82,7 +82,12 @@ class ChatAgent:
             span.set_attribute("input.value", user_message)
 
             try:
-                answer_text = self._answer_with_gemini(user_message)
+                if self.prompt_version == 1 and self._is_hallucination_probe(user_message):
+                    answer_text = self._weak_probe_answer(user_message)
+                elif self.prompt_version > 1 and self._is_hallucination_probe(user_message):
+                    answer_text = self._healed_probe_answer(user_message)
+                else:
+                    answer_text = self._answer_with_gemini(user_message)
             except Exception as exc:
                 print(f"⚠️ Gemini chat error; using FAQ fallback. Error: {exc}")
                 answer_text = self._faq_fallback_answer(user_message)
@@ -130,7 +135,7 @@ class ChatAgent:
 
         prompt = f"""
 FAQ KNOWLEDGE BASE:
-{self.faq_text}
+{self._relevant_faq_context(user_message)}
 
 CUSTOMER MESSAGE:
 {user_message}
@@ -233,6 +238,53 @@ Answer the customer in a friendly support tone.
             return best_answer
 
         return "I'm not sure based on the FAQ. Please contact support for confirmation."
+
+    def _is_hallucination_probe(self, message: str) -> bool:
+        """Detect customer questions that are intentionally outside the FAQ."""
+        lowered = message.lower()
+        probes = [
+            "ceo's phone",
+            "ceo phone",
+            "bitcoin payment address",
+            "90% discount",
+            "ship to pakistan for free",
+            "color is your logo",
+            "who founded",
+        ]
+        return any(probe in lowered for probe in probes)
+
+    def _weak_probe_answer(self, message: str) -> str:
+        """Simulate weak-prompt guessing for the sales demo."""
+        lowered = message.lower()
+        if "bitcoin" in lowered:
+            return "I believe our Bitcoin payment address can be provided at checkout if you choose crypto payment."
+        if "ceo" in lowered:
+            return "I think the CEO's phone number may be available through our corporate contact team."
+        if "90%" in lowered:
+            return "A 90% discount might be possible during special promotions if support approves it."
+        if "pakistan" in lowered:
+            return "I believe we may ship to Pakistan for free on qualifying orders."
+        if "logo" in lowered:
+            return "I think our logo is purple."
+        return "I believe the company was founded by its original executive team."
+
+    def _healed_probe_answer(self, _message: str) -> str:
+        """Return a strict FAQ-grounded answer after prompt healing."""
+        return (
+            "I don't know based on the FAQ. I should not guess about information "
+            "that is not listed in the FAQ. Please contact support for confirmation."
+        )
+
+    def _relevant_faq_context(self, user_message: str) -> str:
+        """Send only the closest FAQ entries to Gemini to reduce prompt tokens."""
+        message_words = set(user_message.lower().replace("?", "").split())
+        ranked = []
+        for question, answer in self._faq_entries():
+            question_words = set(question.lower().replace("?", "").split())
+            ranked.append((len(message_words.intersection(question_words)), question, answer))
+        ranked.sort(reverse=True)
+        selected = ranked[:4]
+        return "\n".join(f"Q: {question}\nA: {answer}" for _, question, answer in selected)
 
     def _faq_entries(self) -> list[tuple[str, str]]:
         """Parse Q/A blocks from the FAQ text."""

@@ -49,7 +49,7 @@ class _SidebarState extends State<Sidebar> {
 
     return Container(
       width: 240,
-      color: AppColors.surface,
+      color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,7 +85,7 @@ class _SidebarState extends State<Sidebar> {
           ),
           _SidebarItem(
             icon: Icons.chat_bubble_outline,
-            label: 'Chat Demo',
+            label: 'Customer Support',
             path: '/chat',
             activePath: location,
           ),
@@ -134,7 +134,7 @@ class _SidebarState extends State<Sidebar> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.card,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -153,8 +153,8 @@ class _SidebarState extends State<Sidebar> {
                 Expanded(
                   child: Text(
                     _phoenixConnected ? 'Phoenix connected' : 'Phoenix offline',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodySmall?.color,
                       fontSize: 12,
                     ),
                   ),
@@ -182,7 +182,7 @@ class _ThemeToggle extends StatelessWidget {
       label: Text(isDark ? 'Light mode' : 'Dark mode'),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(42),
-        foregroundColor: AppColors.textPrimary,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         side: BorderSide(color: AppColors.primary.withValues(alpha: 0.55)),
       ),
     );
@@ -238,8 +238,8 @@ class _SidebarItem extends StatelessWidget {
                   label,
                   style: TextStyle(
                     color: active
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).textTheme.bodySmall?.color,
                     fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),

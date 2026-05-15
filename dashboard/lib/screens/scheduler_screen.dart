@@ -63,7 +63,7 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
   void _showAddSchedule(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       builder: (_) => const _ScheduleForm(),
     );
@@ -92,7 +92,7 @@ class _ScheduleTile extends StatelessWidget {
         ),
         subtitle: Text(
           'Last ${schedule.lastRun == null ? 'never' : format.format(schedule.lastRun!)}  •  Next ${schedule.nextRun == null ? 'paused' : format.format(schedule.nextRun!)}',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
         ),
         leading: Switch(
           value: schedule.enabled,

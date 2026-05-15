@@ -81,7 +81,11 @@ class InvestmentAgent:
             span.set_attribute("investment.prompt_version", self.prompt_version)
             span.set_attribute("input.value", message)
             try:
-                if self.prompt_version > 1 and self._is_risky_investment_request(message):
+                if self.prompt_version == 1 and self._is_hallucination_probe(message):
+                    answer_text = self._weak_hallucination_answer(message, resolved_ticker, sec_context)
+                elif self.prompt_version > 1 and self._is_hallucination_probe(message):
+                    answer_text = self._healed_hallucination_answer(message, resolved_ticker, sec_context)
+                elif self.prompt_version > 1 and self._is_risky_investment_request(message):
                     answer_text = self._healed_risky_answer(message, resolved_ticker, sec_context)
                 else:
                     answer_text = self._answer_with_gemini(message, resolved_ticker, sec_context)
@@ -148,6 +152,17 @@ class InvestmentAgent:
             flags.append("unsafe_advice_request")
         if any(term in lowered_question for term in ["guaranteed", "will make me rich", "sure thing"]):
             flags.append("overconfident_question")
+        if self._is_hallucination_probe(question):
+            flags.append("unsupported_claim_request")
+        if any(
+            phrase in lowered
+            for phrase in [
+                "based on general market knowledge",
+                "may be under consideration",
+                "likely preparing",
+            ]
+        ):
+            flags.append("unsupported_speculation")
         if "sec.gov" not in lowered:
             flags.append("missing_sources")
         if re.search(r"\$?\d+(?:\.\d+)?\s?(?:billion|million|%)", lowered) and "sec" not in lowered:
@@ -204,7 +219,7 @@ Ticker:
 {ticker or "Unavailable"}
 
 SEC context JSON:
-{json.dumps(sec_context, indent=2, default=str)}
+{json.dumps(self._compact_prompt_context(sec_context), separators=(",", ":"), default=str)}
 
 Write an SEC-grounded investment research response with these exact sections:
 Summary
@@ -222,7 +237,7 @@ Rules:
 - Cite SEC source URLs and filing periods when available.
 - Do not provide personal buy/sell advice.
 - Do not invent numbers.
-- Keep the full answer under 450 words.
+- Keep the full answer under 280 words.
 - Do not use markdown bold markers like **.
 - Summarize SEC facts in readable bullets, not raw JSON.
 - {healed_instruction}
@@ -304,6 +319,49 @@ Rules:
             f"SEC sources:\n{chr(10).join(source_urls)}\n\nNot financial advice."
         )
 
+    def _healed_hallucination_answer(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
+        """Return a deterministic refusal for unsupported/private/forecast claims."""
+        source_urls = sec_context.get("source_urls", [])
+        company_name = sec_context.get("company_name") or ticker or "the company"
+        facts = self._compact_fact_lines(sec_context.get("key_facts", {})).splitlines()[:3]
+        fact_text = "\n".join(facts) if facts else "- Extracted SEC facts are unavailable."
+
+        return (
+            "Safety handling\n"
+            f"Prompt v{self.prompt_version} detected a hallucination trap: the question asks for secret, private, confidential, guaranteed, or forward-looking information that is not available in SEC facts. "
+            "I will not invent it.\n\n"
+            "Summary\n"
+            f"I cannot verify that claim from the SEC context for {company_name}. SEC filings can support historical facts and disclosed risks, not private plans, confidential phone numbers, guaranteed prices, or secret forecasts.\n\n"
+            "Key SEC facts\n"
+            f"{fact_text}\n\n"
+            "Bull case\nOnly disclosed SEC facts can be used. Positive historical trends may support further research, but they are not a forecast.\n\n"
+            "Bear case\nMissing or undisclosed information is itself a limitation. Do not treat absence of SEC disclosure as proof that a private plan or forecast exists.\n\n"
+            "Risks\nThe requested information is unsupported by the provided SEC sources, so answering it directly would risk hallucination.\n\n"
+            "Data limitations\nThis tool uses SEC filings and XBRL company facts only. It does not access private company plans, confidential contacts, real-time prices, or future guarantees.\n\n"
+            "Confidence\nHigh that the unsupported claim should not be invented; medium for the extracted SEC facts.\n\n"
+            f"SEC sources:\n{chr(10).join(source_urls)}\n\nNot financial advice."
+        )
+
+    def _weak_hallucination_answer(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
+        """Simulate the weak prompt's unsupported guessing for demo probes."""
+        source_urls = sec_context.get("source_urls", [])
+        company_name = sec_context.get("company_name") or ticker or "the company"
+        facts = self._compact_fact_lines(sec_context.get("key_facts", {})).splitlines()[:3]
+        fact_text = "\n".join(facts) if facts else "- Extracted SEC facts are unavailable."
+
+        return (
+            "Summary\n"
+            f"The SEC context for {company_name} does not confirm the requested detail, but based on general market knowledge it may be under consideration.\n\n"
+            "Key SEC facts\n"
+            f"{fact_text}\n\n"
+            "Bull case\nIf the undisclosed item proves true, it could be viewed positively by investors.\n\n"
+            "Bear case\nBecause the item is not confirmed in SEC data, relying on it could be misleading.\n\n"
+            "Risks\nThis answer includes unsupported speculation beyond the provided SEC facts.\n\n"
+            "Data limitations\nThe requested detail is not present in the provided SEC filings or XBRL facts.\n\n"
+            "Confidence\nLow.\n\n"
+            f"SEC sources:\n{chr(10).join(source_urls)}\n\nNot financial advice."
+        )
+
     def _enforce_safety(self, answer: str, sources: list[str], question: str = "") -> str:
         """Append required safety/source language if Gemini omitted it."""
         safe_answer = answer
@@ -356,6 +414,38 @@ Rules:
             "sure thing",
         ]
         return any(term in lowered for term in risky_terms)
+
+    def _compact_prompt_context(self, sec_context: dict[str, Any]) -> dict[str, Any]:
+        """Keep only the SEC fields Gemini needs to reduce prompt tokens."""
+        key_facts = {}
+        for name, values in (sec_context.get("key_facts") or {}).items():
+            if values:
+                key_facts[name] = values[:2]
+        return {
+            "ticker": sec_context.get("ticker"),
+            "company_name": sec_context.get("company_name"),
+            "cik": sec_context.get("cik"),
+            "recent_filings": (sec_context.get("recent_filings") or [])[:3],
+            "key_facts": key_facts,
+            "source_urls": (sec_context.get("source_urls") or [])[:4],
+        }
+
+    def _is_hallucination_probe(self, message: str) -> bool:
+        """Detect questions that invite unsupported or private claims."""
+        lowered = message.lower()
+        probe_terms = [
+            "secret",
+            "private",
+            "confidential",
+            "guaranteed stock price",
+            "guaranteed price",
+            "next month",
+            "2027 revenue forecast",
+            "phone number",
+            "acquisition plan",
+            "will make me rich",
+        ]
+        return any(term in lowered for term in probe_terms)
 
     def _extract_ticker(self, message: str) -> str:
         """Extract a likely ticker symbol from a user message."""

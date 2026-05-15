@@ -10,7 +10,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+
+import '../providers/agent_provider.dart';
 
 const apiBase = 'http://localhost:8000';
 const wsUrl = 'ws://localhost:8000/ws';
@@ -47,6 +50,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       {};
   static Map<String, dynamic>? _latestBaselineAnswer;
   static List<String> _savedLastRiskFlags = [];
+  static Map<String, dynamic>? _savedPendingHealingBaseline;
 
   late List<Map<String, dynamic>> messages;
   late String sessionId;
@@ -57,6 +61,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   bool isLoading = false;
   late int promptVersion;
   bool showHealingBanner = false;
+  Map<String, dynamic>? pendingHealingBaseline;
   String healingBannerText = '';
   Map<String, dynamic>? secContext;
   bool isSecLoading = false;
@@ -99,6 +104,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     _savedTickers = tickers;
     secContext = _savedSecContext ?? _secContextCache[selectedTicker];
     lastRiskFlags = _savedLastRiskFlags;
+    pendingHealingBaseline = _savedPendingHealingBaseline;
     promptPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
@@ -108,6 +114,11 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     loadStatus();
     loadTickers();
     connectWebSocket();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<AgentProvider>().connectWebSocket();
+      context.read<AgentProvider>().loadStatus();
+    });
   }
 
   @override
@@ -127,8 +138,20 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       );
       if (response.statusCode != 200) return;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final nextVersion = _asInt(data['prompt_version'], 1);
+      final baseline =
+          nextVersion > promptVersion && pendingHealingBaseline == null
+          ? _latestCompletedExchange()
+          : null;
       if (!mounted) return;
-      setState(() => promptVersion = _asInt(data['prompt_version'], 1));
+      setState(() {
+        promptVersion = nextVersion;
+        if (baseline != null) {
+          pendingHealingBaseline = baseline;
+          inputController.text = baseline['question']?.toString() ?? '';
+        }
+        _saveState();
+      });
     } catch (error) {
       debugPrint('Investment status failed: $error');
     }
@@ -207,6 +230,20 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   Future<void> sendMessage(String text) async {
     final cleanText = text.trim();
     if (cleanText.isEmpty || isLoading) return;
+    if (!_hasLoadedContextForSelectedTicker()) {
+      _showSecRequiredDialog();
+      return;
+    }
+    if (pendingHealingBaseline != null &&
+        _normalizeQuestion(cleanText) !=
+            _normalizeQuestion(
+              pendingHealingBaseline?['question']?.toString() ?? '',
+            )) {
+      _showReplayRequiredDialog(
+        pendingHealingBaseline?['question']?.toString() ?? '',
+      );
+      return;
+    }
 
     inputController.clear();
     setState(() {
@@ -243,27 +280,32 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         promptVersion,
       );
       final questionKey = _normalizeQuestion(cleanText);
+      final previousBaseline = _baselineAnswersByQuestion[questionKey];
+      final previousVersion = _asInt(previousBaseline?['prompt_version'], 0);
       String comparison = '';
       Map<String, dynamic>? baselineForComparison;
-      if (responsePromptVersion <= 1) {
-        baselineForComparison = {
-          'question': cleanText,
-          'answer': answerText,
-          'risk_flags': flags,
-          'prompt_version': responsePromptVersion,
-          'ticker': data['ticker']?.toString() ?? selectedTicker,
-        };
-        _baselineAnswersByQuestion[questionKey] = baselineForComparison;
-        _latestBaselineAnswer = baselineForComparison;
-      } else if (_baselineAnswersByQuestion.containsKey(questionKey)) {
-        baselineForComparison = _baselineAnswersByQuestion[questionKey];
+      baselineForComparison =
+          pendingHealingBaseline ??
+          _findPreviousChatAnswer(questionKey, responsePromptVersion);
+      if (baselineForComparison != null) {
         comparison = _buildComparison(
-          baselineForComparison!,
+          baselineForComparison,
           answerText,
           flags,
           responsePromptVersion,
         );
-      } else if (_latestBaselineAnswer != null) {
+      } else if (previousBaseline != null &&
+          previousVersion < responsePromptVersion) {
+        baselineForComparison = previousBaseline;
+        comparison = _buildComparison(
+          baselineForComparison,
+          answerText,
+          flags,
+          responsePromptVersion,
+        );
+      } else if (_latestBaselineAnswer != null &&
+          _asInt(_latestBaselineAnswer?['prompt_version'], 0) <
+              responsePromptVersion) {
         baselineForComparison = _latestBaselineAnswer;
         comparison = _buildComparison(
           baselineForComparison!,
@@ -284,6 +326,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         messages.add({
           'role': 'analyst',
           'content': answerText,
+          'question': cleanText,
           'timestamp': DateTime.now(),
           'ticker': data['ticker']?.toString() ?? selectedTicker,
           'latency_ms': _asInt(data['latency_ms'], 0),
@@ -297,23 +340,18 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           'baseline_prompt_version': baselineForComparison?['prompt_version'],
           'baseline_risk_flags': baselineForComparison?['risk_flags'],
         });
+        final currentAnswerAsBaseline = {
+          'question': cleanText,
+          'answer': answerText,
+          'risk_flags': flags,
+          'prompt_version': responsePromptVersion,
+          'ticker': data['ticker']?.toString() ?? selectedTicker,
+        };
+        _baselineAnswersByQuestion[questionKey] = currentAnswerAsBaseline;
+        _latestBaselineAnswer = currentAnswerAsBaseline;
+        if (comparison.isNotEmpty) pendingHealingBaseline = null;
         _saveState();
       });
-      if (comparison.isNotEmpty && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _showHealingComparisonDialog(
-            context: context,
-            beforeText: baselineForComparison?['answer']?.toString() ?? '',
-            afterText: answerText,
-            beforeVersion: _asInt(baselineForComparison?['prompt_version'], 1),
-            afterVersion: responsePromptVersion,
-            beforeFlags: _stringList(baselineForComparison?['risk_flags']),
-            afterFlags: flags,
-            improvement: comparison,
-          );
-        });
-      }
     } catch (error) {
       setState(() {
         messages.add({
@@ -340,6 +378,49 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     }
   }
 
+  bool _hasLoadedContextForSelectedTicker() {
+    return secContext != null &&
+        secContext?['ticker']?.toString().toUpperCase() ==
+            selectedTicker.toUpperCase();
+  }
+
+  void _showSecRequiredDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Load SEC context first'),
+        content: Text(
+          'Select $selectedTicker and click "Load SEC Context" before chatting. '
+          'The analyst only answers from downloaded SEC filings and company facts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReplayRequiredDialog(String question) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Replay the last question'),
+        content: Text(
+          'Self-healing just updated the prompt. Ask the same question again first so the app can show the before/after comparison:\n\n$question',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> resetInvestmentAgent() async {
     try {
       await http.post(Uri.parse('$apiBase/api/investment/reset'));
@@ -350,6 +431,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         promptVersion = 1;
         lastRiskFlags = [];
         secContext = null;
+        pendingHealingBaseline = null;
         _secContextCache.clear();
         _saveState();
       });
@@ -381,11 +463,16 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   void _handleSocket(String message) {
     if (message.startsWith('investment_prompt_updated:v')) {
       final version = int.tryParse(message.split(':v').last) ?? promptVersion;
+      final baseline = _latestCompletedExchange();
       setState(() {
         promptVersion = version;
         healingBannerText =
             '🔧 Self-Healing improved the investment analyst. Prompt updated to v$version.';
         showHealingBanner = true;
+        pendingHealingBaseline = baseline;
+        if (baseline != null) {
+          inputController.text = baseline['question']?.toString() ?? '';
+        }
         messages.add({
           'role': 'system',
           'content':
@@ -408,6 +495,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         sessionId = '';
         lastRiskFlags = [];
         secContext = null;
+        pendingHealingBaseline = null;
       });
       _saveState();
     }
@@ -423,7 +511,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Row(
         children: [
           Expanded(
@@ -452,11 +540,15 @@ class _InvestmentScreenState extends State<InvestmentScreen>
                   normalQuestions: normalQuestions,
                   riskyQuestions: riskyQuestions,
                   hallucinationQuestions: hallucinationQuestions,
+                  initiallyCollapsed: messages.any(
+                    (message) => message['role'] == 'user',
+                  ),
                   onSelected: sendMessage,
                 ),
                 _InputBar(
                   controller: inputController,
                   isLoading: isLoading,
+                  canSend: _hasLoadedContextForSelectedTicker(),
                   onReset: resetInvestmentAgent,
                   onSend: () => sendMessage(inputController.text),
                 ),
@@ -530,10 +622,69 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     _savedPromptVersion = promptVersion;
     _savedSecContext = secContext;
     _savedLastRiskFlags = lastRiskFlags;
+    _savedPendingHealingBaseline = pendingHealingBaseline;
   }
 
   String _normalizeQuestion(String value) {
     return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  Map<String, dynamic>? _findPreviousChatAnswer(
+    String questionKey,
+    int currentVersion,
+  ) {
+    for (var index = messages.length - 1; index >= 0; index--) {
+      final message = messages[index];
+      if (message['role'] != 'analyst') continue;
+
+      var question = message['question']?.toString() ?? '';
+      if (question.isEmpty) {
+        for (var prior = index - 1; prior >= 0; prior--) {
+          if (messages[prior]['role'] == 'user') {
+            question = messages[prior]['content']?.toString() ?? '';
+            break;
+          }
+        }
+      }
+
+      final version = _asInt(message['prompt_version'], 0);
+      if (_normalizeQuestion(question) == questionKey &&
+          version < currentVersion) {
+        return {
+          'question': question,
+          'answer': message['content']?.toString() ?? '',
+          'risk_flags': _stringList(message['risk_flags']),
+          'prompt_version': version,
+          'ticker': message['ticker']?.toString() ?? selectedTicker,
+        };
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _latestCompletedExchange() {
+    for (var index = messages.length - 1; index >= 0; index--) {
+      final message = messages[index];
+      if (message['role'] != 'analyst') continue;
+      var question = message['question']?.toString() ?? '';
+      if (question.isEmpty) {
+        for (var prior = index - 1; prior >= 0; prior--) {
+          if (messages[prior]['role'] == 'user') {
+            question = messages[prior]['content']?.toString() ?? '';
+            break;
+          }
+        }
+      }
+      if (question.isEmpty) continue;
+      return {
+        'question': question,
+        'answer': message['content']?.toString() ?? '',
+        'risk_flags': _stringList(message['risk_flags']),
+        'prompt_version': _asInt(message['prompt_version'], promptVersion),
+        'ticker': message['ticker']?.toString() ?? selectedTicker,
+      };
+    }
+    return null;
   }
 
   String _buildComparison(
@@ -550,9 +701,15 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     final addedRefusal =
         healedAnswer.toLowerCase().contains('cannot decide') ||
         healedAnswer.toLowerCase().contains('cannot tell you whether');
+    final refusedUnsupported =
+        healedAnswer.toLowerCase().contains('hallucination trap') ||
+        healedAnswer.toLowerCase().contains('will not invent') ||
+        healedAnswer.toLowerCase().contains('cannot verify');
     final improvements = <String>[
       if (addedSafetyHandling) 'added an explicit Safety handling section',
       if (addedRefusal) 'refused to make the buy/sell decision for the user',
+      if (refusedUnsupported)
+        'refused to invent unsupported private, secret, or forecast data',
       'kept SEC facts, bull/bear case, risks, limits, and sources',
     ];
 
@@ -576,6 +733,8 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       'missing_risks': 'missing risks',
       'missing_disclaimer': 'missing disclaimer',
       'invented_numbers_risk': 'number-grounding risk',
+      'unsupported_claim_request': 'unsupported/private claim request',
+      'unsupported_speculation': 'unsupported speculation',
       'backend_error': 'backend error',
     };
     return labels[flag] ?? flag.replaceAll('_', ' ');
@@ -590,12 +749,15 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final agent = context.watch<AgentProvider>();
     return Container(
       height: 86,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: surface,
-        border: Border(bottom: BorderSide(color: card)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
       ),
       child: Row(
         children: [
@@ -624,6 +786,8 @@ class _Header extends StatelessWidget {
           const _Badge(text: 'Self-Healing Active', color: success),
           const SizedBox(width: 10),
           const _Badge(text: 'SEC Data', color: accent),
+          const SizedBox(width: 10),
+          _AgentRunControls(agent: agent),
         ],
       ),
     );
@@ -697,7 +861,7 @@ class _MessageCard extends StatelessWidget {
     final comparison = message['comparison']?.toString() ?? '';
     final copyText = isUser ? content : _FormattedAnswer.visibleText(content);
     final baselineAnswer = message['baseline_answer']?.toString() ?? '';
-    final canCompare = !isUser && promptVersion > 1;
+    final canCompare = !isUser && baselineAnswer.isNotEmpty;
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -709,17 +873,31 @@ class _MessageCard extends StatelessWidget {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
+            if (canCompare) ...[
+              _ShowComparisonButton(
+                beforeText: baselineAnswer,
+                afterText: content,
+                beforeVersion: _asInt(message['baseline_prompt_version'], 1),
+                afterVersion: promptVersion,
+                beforeFlags: _stringList(message['baseline_risk_flags']),
+                afterFlags: riskFlags,
+                improvement: comparison,
+              ),
+              const SizedBox(height: 8),
+            ],
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: isUser ? primary : card,
+                color: isUser ? primary : Theme.of(context).cardColor,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
                   bottomLeft: Radius.circular(isUser ? 18 : 4),
                   bottomRight: Radius.circular(isUser ? 4 : 18),
                 ),
-                border: isUser ? null : Border.all(color: surface),
+                border: isUser
+                    ? null
+                    : Border.all(color: Theme.of(context).dividerColor),
               ),
               child: isUser
                   ? SelectableText(
@@ -753,18 +931,6 @@ class _MessageCard extends StatelessWidget {
                   ),
               ],
             ),
-            if (canCompare) ...[
-              const SizedBox(height: 8),
-              _ShowComparisonButton(
-                beforeText: baselineAnswer,
-                afterText: content,
-                beforeVersion: _asInt(message['baseline_prompt_version'], 1),
-                afterVersion: promptVersion,
-                beforeFlags: _stringList(message['baseline_risk_flags']),
-                afterFlags: riskFlags,
-                improvement: comparison,
-              ),
-            ],
             if (!isUser) ...[
               const SizedBox(height: 8),
               Wrap(
@@ -838,7 +1004,7 @@ class _FormattedAnswer extends StatelessWidget {
             child: SelectableText(
               line,
               style: TextStyle(
-                color: textMain,
+                color: Theme.of(context).colorScheme.onSurface,
                 height: 1.35,
                 fontSize: _isHeading(line) ? 15 : 14,
                 fontWeight: _isHeading(line)
@@ -1051,7 +1217,7 @@ class _ShowComparisonButton extends StatelessWidget {
   }
 }
 
-void _showHealingComparisonDialog({
+Future<void> _showHealingComparisonDialog({
   required BuildContext context,
   required String beforeText,
   required String afterText,
@@ -1069,7 +1235,7 @@ void _showHealingComparisonDialog({
       ? _fallbackImprovementText()
       : improvement;
 
-  showDialog<void>(
+  return showDialog<void>(
     context: context,
     builder: (context) => Dialog(
       backgroundColor: surface,
@@ -1403,7 +1569,11 @@ class _RiskFlags extends StatelessWidget {
         for (final flag in flags)
           _FlagChip(
             label: _friendlyFlagLabel(flag),
-            color: flag == 'unsafe_advice' || flag == 'unsafe_advice_request'
+            color:
+                flag == 'unsafe_advice' ||
+                    flag == 'unsafe_advice_request' ||
+                    flag == 'unsupported_claim_request' ||
+                    flag == 'unsupported_speculation'
                 ? danger
                 : warning,
           ),
@@ -1421,6 +1591,8 @@ class _RiskFlags extends StatelessWidget {
       'missing_risks': 'missing risks',
       'missing_disclaimer': 'missing disclaimer',
       'invented_numbers_risk': 'number-grounding risk',
+      'unsupported_claim_request': 'unsupported/private claim',
+      'unsupported_speculation': 'unsupported speculation',
       'backend_error': 'backend error',
     };
     return labels[flag] ?? flag.replaceAll('_', ' ');
@@ -1432,49 +1604,196 @@ class _QuestionChips extends StatelessWidget {
     required this.normalQuestions,
     required this.riskyQuestions,
     required this.hallucinationQuestions,
+    required this.initiallyCollapsed,
     required this.onSelected,
   });
 
   final List<String> normalQuestions;
   final List<String> riskyQuestions;
   final List<String> hallucinationQuestions;
+  final bool initiallyCollapsed;
   final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
+    return _QuestionCarousel(
+      groups: [
+        _QuestionGroup('Normal research', success, normalQuestions),
+        _QuestionGroup('Risky demo', warning, riskyQuestions),
+        _QuestionGroup('Hallucination tests', danger, hallucinationQuestions),
+      ],
+      initiallyCollapsed: initiallyCollapsed,
+      onSelected: onSelected,
+    );
+  }
+}
+
+class _QuestionGroup {
+  const _QuestionGroup(this.label, this.color, this.values);
+
+  final String label;
+  final Color color;
+  final List<String> values;
+}
+
+class _QuestionCarousel extends StatefulWidget {
+  const _QuestionCarousel({
+    required this.groups,
+    required this.initiallyCollapsed,
+    required this.onSelected,
+  });
+
+  final List<_QuestionGroup> groups;
+  final bool initiallyCollapsed;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_QuestionCarousel> createState() => _QuestionCarouselState();
+}
+
+class _QuestionCarouselState extends State<_QuestionCarousel> {
+  late bool collapsed = widget.initiallyCollapsed;
+  final PageController controller = PageController();
+  int page = 0;
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuestionCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.initiallyCollapsed && widget.initiallyCollapsed) {
+      collapsed = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (collapsed) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => setState(() => collapsed = false),
+            icon: const Icon(Icons.tips_and_updates_outlined),
+            label: const Text('Show suggested questions'),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Suggested questions',
-            style: TextStyle(color: textMuted, fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Suggested questions',
+                  style: TextStyle(
+                    color: textMuted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Hide suggestions',
+                onPressed: () => setState(() => collapsed = true),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < widget.groups.length; i++)
+                ChoiceChip(
+                  label: Text(widget.groups[i].label),
+                  selected: page == i,
+                  selectedColor: widget.groups[i].color.withValues(alpha: 0.2),
+                  side: BorderSide(color: widget.groups[i].color),
+                  onSelected: (_) => _goToPage(i),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
-          _ChipLine(
-            label: 'Normal research:',
-            color: success,
-            values: normalQuestions,
-            onSelected: onSelected,
+          Row(
+            children: [
+              IconButton.outlined(
+                tooltip: 'Previous suggestions',
+                onPressed: page == 0 ? null : () => _goToPage(page - 1),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 84,
+                  child: PageView.builder(
+                    controller: controller,
+                    itemCount: widget.groups.length,
+                    onPageChanged: (value) => setState(() => page = value),
+                    itemBuilder: (context, index) {
+                      final group = widget.groups[index];
+                      return _ChipLine(
+                        label: '${group.label}:',
+                        color: group.color,
+                        values: group.values,
+                        onSelected: (value) {
+                          widget.onSelected(value);
+                          setState(() => collapsed = true);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                tooltip: 'Next suggestions',
+                onPressed: page == widget.groups.length - 1
+                    ? null
+                    : () => _goToPage(page + 1),
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          _ChipLine(
-            label: 'Risky demo:',
-            color: warning,
-            values: riskyQuestions,
-            onSelected: onSelected,
-          ),
-          const SizedBox(height: 8),
-          _ChipLine(
-            label: 'Hallucination tests:',
-            color: danger,
-            values: hallucinationQuestions,
-            onSelected: onSelected,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < widget.groups.length; i++)
+                Container(
+                  width: i == page ? 18 : 7,
+                  height: 7,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: i == page
+                        ? widget.groups[i].color
+                        : textMuted.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  void _goToPage(int index) {
+    setState(() => page = index);
+    controller.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
     );
   }
 }
@@ -1508,8 +1827,10 @@ class _ChipLine extends StatelessWidget {
             label: Text(value),
             onPressed: () => onSelected(value),
             side: BorderSide(color: color),
-            backgroundColor: Colors.transparent,
-            labelStyle: const TextStyle(color: textMain),
+            backgroundColor: Theme.of(context).cardColor,
+            labelStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
       ],
     );
@@ -1520,12 +1841,14 @@ class _InputBar extends StatelessWidget {
   const _InputBar({
     required this.controller,
     required this.isLoading,
+    required this.canSend,
     required this.onReset,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final bool isLoading;
+  final bool canSend;
   final VoidCallback onReset;
   final VoidCallback onSend;
 
@@ -1533,15 +1856,18 @@ class _InputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-      decoration: const BoxDecoration(
-        color: surface,
-        border: Border(top: BorderSide(color: card)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: Row(
         children: [
           IconButton(
             onPressed: onReset,
-            icon: const Icon(Icons.refresh, color: textMuted),
+            icon: Icon(
+              Icons.refresh,
+              color: Theme.of(context).textTheme.bodySmall?.color,
+            ),
             tooltip: 'Reset investment analyst',
           ),
           const SizedBox(width: 10),
@@ -1551,15 +1877,17 @@ class _InputBar extends StatelessWidget {
               enabled: !isLoading,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => onSend(),
-              decoration: const InputDecoration(
-                hintText: 'Ask an SEC-grounded investment research question...',
+              decoration: InputDecoration(
+                hintText: canSend
+                    ? 'Ask an SEC-grounded investment research question...'
+                    : 'Load SEC context before chatting...',
                 filled: true,
-                fillColor: card,
-                border: OutlineInputBorder(
+                fillColor: Theme.of(context).cardColor,
+                border: const OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(24)),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 15,
                 ),
@@ -1621,9 +1949,9 @@ class _AnalystPanel extends StatelessWidget {
 
     return Container(
       width: 330,
-      decoration: const BoxDecoration(
-        color: surface,
-        border: Border(left: BorderSide(color: card)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
       ),
       child: ListView(
         padding: const EdgeInsets.all(18),
@@ -1960,6 +2288,42 @@ class _Badge extends StatelessWidget {
           fontSize: 12,
         ),
       ),
+    );
+  }
+}
+
+class _AgentRunControls extends StatelessWidget {
+  const _AgentRunControls({required this.agent});
+
+  final AgentProvider agent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton.outlined(
+          tooltip: 'Run Agent Control',
+          onPressed: agent.isRunning ? null : agent.runNow,
+          style: IconButton.styleFrom(
+            foregroundColor: success,
+            side: BorderSide(color: success.withValues(alpha: 0.7)),
+          ),
+          icon: const Icon(Icons.play_arrow_rounded),
+        ),
+        const SizedBox(width: 6),
+        IconButton.outlined(
+          tooltip: 'Stop Agent Control',
+          onPressed: agent.isRunning && !agent.isStopping
+              ? agent.stopNow
+              : null,
+          style: IconButton.styleFrom(
+            foregroundColor: danger,
+            side: BorderSide(color: danger.withValues(alpha: 0.7)),
+          ),
+          icon: const Icon(Icons.stop_circle_outlined),
+        ),
+      ],
     );
   }
 }
