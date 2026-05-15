@@ -15,6 +15,71 @@ class AppColors {
 }
 
 class AppTheme {
+  static ThemeData get light {
+    final textTheme = GoogleFonts.interTextTheme(ThemeData.light().textTheme);
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF6F7FB),
+      colorScheme: const ColorScheme.light(
+        primary: AppColors.primary,
+        secondary: AppColors.accent,
+        surface: Color(0xFFFFFFFF),
+        error: AppColors.danger,
+        onPrimary: AppColors.textPrimary,
+        onSecondary: AppColors.background,
+        onSurface: Color(0xFF151521),
+        onError: AppColors.textPrimary,
+      ),
+      textTheme: textTheme.apply(
+        bodyColor: const Color(0xFF151521),
+        displayColor: const Color(0xFF151521),
+      ),
+      cardTheme: CardThemeData(
+        color: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF0F1F7),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFD8DAE8)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFD8DAE8)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+        labelStyle: const TextStyle(color: Color(0xFF5B5D70)),
+        hintStyle: const TextStyle(color: Color(0xFF5B5D70)),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.textPrimary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(color: Color(0xFFD8DAE8)),
+      iconTheme: const IconThemeData(color: Color(0xFF5B5D70)),
+    );
+  }
+
   static ThemeData get dark {
     final textTheme = GoogleFonts.interTextTheme(ThemeData.dark().textTheme);
 

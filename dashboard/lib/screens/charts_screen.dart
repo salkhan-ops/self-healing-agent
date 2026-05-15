@@ -53,6 +53,8 @@ class _ChartsScreenState extends State<ChartsScreen> {
                 provider.loadChartData(selection.first),
           ),
           const SizedBox(height: 20),
+          _MetricHint(points: points),
+          const SizedBox(height: 14),
           Expanded(
             child: Column(
               children: [
@@ -61,6 +63,7 @@ class _ChartsScreenState extends State<ChartsScreen> {
                     title: 'Hallucination Rate',
                     color: AppColors.danger,
                     values: points.map((p) => p.hallucination).toList(),
+                    idealText: 'lower is better',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -69,6 +72,7 @@ class _ChartsScreenState extends State<ChartsScreen> {
                     title: 'Relevance Score',
                     color: AppColors.accent,
                     values: points.map((p) => p.relevance).toList(),
+                    idealText: 'higher is better',
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -77,6 +81,7 @@ class _ChartsScreenState extends State<ChartsScreen> {
                     title: 'Latency',
                     color: AppColors.warning,
                     values: points.map((p) => p.latencyMs).toList(),
+                    idealText: 'milliseconds',
                   ),
                 ),
               ],
@@ -88,20 +93,54 @@ class _ChartsScreenState extends State<ChartsScreen> {
   }
 }
 
+class _MetricHint extends StatelessWidget {
+  const _MetricHint({required this.points});
+
+  final List<dynamic> points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        points.isEmpty
+            ? 'No saved metric snapshots yet. Run Agent Control to create chart data.'
+            : 'Showing ${points.length} saved support-agent snapshots. Flat hallucination/relevance lines mean the evaluator saved identical scores for those runs; latency still changes per run.',
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _Chart extends StatelessWidget {
   const _Chart({
     required this.title,
     required this.color,
     required this.values,
+    required this.idealText,
   });
 
   final String title;
   final Color color;
   final List<double> values;
+  final String idealText;
 
   @override
   Widget build(BuildContext context) {
     final data = values.isEmpty ? [0.0, 0.0] : values;
+    final latest = values.isEmpty ? 0.0 : values.last;
+    final isFlat =
+        values.length > 1 && values.every((value) => value == values.first);
 
     return Card(
       child: Padding(
@@ -109,7 +148,31 @@ class _Chart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Text(
+                  '${latest.toStringAsFixed(title == 'Latency' ? 0 : 2)} · $idealText',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            if (isFlat) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Flat line: no score movement in the selected period.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              ),
+            ],
             const SizedBox(height: 10),
             Expanded(
               child: LineChart(

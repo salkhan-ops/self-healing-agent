@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/theme.dart';
+import '../providers/theme_provider.dart';
 
 class Sidebar extends StatefulWidget {
   const Sidebar({super.key});
@@ -43,6 +45,7 @@ class _SidebarState extends State<Sidebar> {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
+    final themeProvider = context.watch<ThemeProvider>();
 
     return Container(
       width: 240,
@@ -123,6 +126,11 @@ class _SidebarState extends State<Sidebar> {
             activePath: location,
           ),
           const Spacer(),
+          _ThemeToggle(
+            isDark: themeProvider.isDark,
+            onPressed: themeProvider.toggleTheme,
+          ),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -155,6 +163,27 @@ class _SidebarState extends State<Sidebar> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ThemeToggle extends StatelessWidget {
+  const _ThemeToggle({required this.isDark, required this.onPressed});
+
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+      label: Text(isDark ? 'Light mode' : 'Dark mode'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(42),
+        foregroundColor: AppColors.textPrimary,
+        side: BorderSide(color: AppColors.primary.withValues(alpha: 0.55)),
       ),
     );
   }

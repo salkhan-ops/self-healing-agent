@@ -7,6 +7,7 @@ import 'providers/agent_provider.dart';
 import 'providers/metrics_provider.dart';
 import 'providers/reports_provider.dart';
 import 'providers/scheduler_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/agent_control_screen.dart';
 import 'screens/charts_screen.dart';
 import 'screens/chat_screen.dart';
@@ -28,12 +29,19 @@ class SelfHealingDashboardApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider(create: (_) => SchedulerProvider()),
         ChangeNotifierProvider(create: (_) => AgentProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp.router(
-        title: 'Self-Healing Agent Dashboard',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
-        routerConfig: _router,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp.router(
+            title: 'Self-Healing Agent Dashboard',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: themeProvider.mode,
+            routerConfig: _router,
+          );
+        },
       ),
     );
   }
