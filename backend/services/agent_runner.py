@@ -7,6 +7,7 @@ WebSocket clients, and stores run metrics and reports after each run.
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -181,6 +182,15 @@ class AgentRunner:
         chat_agent.update_prompt(new_prompt)
         self._broadcast_from_thread(f"prompt_updated:v{chat_agent.prompt_version}")
         try:
+            from backend.services.post_agent import HEALED_POST_PROMPT, post_agent
+
+            post_agent.update_prompt(HEALED_POST_PROMPT)
+            self._broadcast_from_thread(
+                f"post_prompt_updated:v{post_agent.prompt_version}"
+            )
+        except Exception as exc:
+            print(f"Could not update post agent: {exc}")
+        try:
             from backend.services.investment_agent import investment_agent
 
             investment_agent.update_prompt(new_prompt)
@@ -193,6 +203,34 @@ class AgentRunner:
         verifier = Verifier(evaluator=Evaluator(faq_path=faq_path))
         verification = verifier.verify(questions, evaluation, agent)
         self._broadcast_from_thread(f"run:{run_id}:verified")
+
+        self._check_stop()
+        old_version = chat_agent.prompt_version - 1
+        new_version = chat_agent.prompt_version
+        pairs = self._build_comparison_pairs(
+            questions,
+            round_one_traces,
+            verification.traces if verification.traces else [],
+            old_version,
+            new_version,
+        )
+        if pairs:
+            payload = {
+                "pairs": pairs,
+                "root_cause": root_cause.category,
+                "root_cause_explanation": root_cause.explanation,
+                "before_hallucination": evaluation.hallucination_score,
+                "after_hallucination": verification.after_scores.get(
+                    "hallucination_score", 0.0
+                ),
+                "before_relevance": evaluation.relevance_score,
+                "after_relevance": verification.after_scores.get("relevance_score", 0.0),
+                "old_prompt": old_prompt,
+                "new_prompt": new_prompt,
+            }
+            self._broadcast_from_thread(
+                f"comparisons_ready:{json.dumps(payload)}"
+            )
 
         self._check_stop()
         reporter = Reporter(reports_dir=PROJECT_ROOT / "reports")
@@ -210,6 +248,47 @@ class AgentRunner:
             latency_ms = (datetime.utcnow() - started).total_seconds() * 1000
             traces.append({"question": question, "answer": answer, "latency_ms": latency_ms})
         return traces
+
+    def _build_comparison_pairs(
+        self,
+        questions: list[str],
+        round_one_traces: list[dict],
+        verification_traces: list[dict],
+        old_version: int,
+        new_version: int,
+    ) -> list[dict]:
+        """
+        Pair before/after answers for questions where
+        the answer actually changed after healing.
+        Return at most 3 pairs, prioritising changed answers.
+        """
+        pairs = []
+        before_map = {
+            t["question"]: t["answer"]
+            for t in round_one_traces
+            if "question" in t and "answer" in t
+        }
+        after_map = {
+            t["question"]: t["answer"]
+            for t in verification_traces
+            if "question" in t and "answer" in t
+        }
+        for question in questions:
+            before = before_map.get(question, "")
+            after = after_map.get(question, "")
+            if before and after:
+                pairs.append(
+                    {
+                        "question": question,
+                        "before": before,
+                        "after": after,
+                        "before_version": old_version,
+                        "after_version": new_version,
+                        "changed": before.strip() != after.strip(),
+                    }
+                )
+        pairs.sort(key=lambda p: not p["changed"])
+        return pairs[:3]
 
     def _check_stop(self) -> None:
         """Stop cleanly when the dashboard has requested cancellation."""

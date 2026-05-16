@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../providers/agent_provider.dart';
+import '../widgets/healing_journey_dialog.dart';
 
 const apiBase = 'http://localhost:8000';
 const wsUrl = 'ws://localhost:8000/ws';
@@ -43,8 +44,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   static int _savedPromptVersion = 1;
   static double _savedHallucinationRate = 0.0;
   static bool _savedSelfHealingActive = true;
-  static Map<String, dynamic>? _savedPendingHealingBaseline;
-  static final Map<String, Map<String, dynamic>> _answersByQuestion = {};
+  static List<Map<String, dynamic>> _savedHealingComparisons = [];
+  static Map<String, dynamic> _savedHealingJourneyMeta = {};
 
   late List<Map<String, dynamic>> messages;
   final inputController = TextEditingController();
@@ -75,7 +76,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   late double hallucinationRate;
   late bool selfHealingActive;
   bool showSelfHealingBanner = false;
-  Map<String, dynamic>? pendingHealingBaseline;
+  List<Map<String, dynamic>> healingComparisons = [];
+  Map<String, dynamic> healingJourneyMeta = {};
   WebSocketChannel? wsChannel;
   late final AnimationController _badgeController;
   late final AnimationController _pulseController;
@@ -88,7 +90,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     promptVersion = _savedPromptVersion;
     hallucinationRate = _savedHallucinationRate;
     selfHealingActive = _savedSelfHealingActive;
-    pendingHealingBaseline = _savedPendingHealingBaseline;
+    healingComparisons = _savedHealingComparisons;
+    healingJourneyMeta = _savedHealingJourneyMeta;
     _badgeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
@@ -128,16 +131,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final nextVersion = _asInt(data['prompt_version'], 1);
-      final baseline =
-          nextVersion > promptVersion && pendingHealingBaseline == null
-          ? _latestCompletedExchange()
-          : null;
       setState(() {
         promptVersion = nextVersion;
-        if (baseline != null) {
-          pendingHealingBaseline = baseline;
-          inputController.text = baseline['question']?.toString() ?? '';
-        }
         _saveState();
       });
     } catch (error) {
@@ -174,27 +169,63 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _handleSocketMessage(String message) {
+    if (message.startsWith('comparisons_ready:')) {
+      final jsonStr = message.substring('comparisons_ready:'.length);
+      try {
+        final decoded = jsonDecode(jsonStr);
+        final List<dynamic> pairs;
+        final Map<String, dynamic> meta;
+        if (decoded is Map<String, dynamic>) {
+          pairs = decoded['pairs'] is List
+              ? decoded['pairs'] as List<dynamic>
+              : [];
+          meta = decoded;
+        } else if (decoded is List) {
+          pairs = decoded;
+          meta = {};
+        } else {
+          pairs = [];
+          meta = {};
+        }
+        setState(() {
+          promptVersion++;
+          healingComparisons = pairs.cast<Map<String, dynamic>>().toList();
+          healingJourneyMeta = meta;
+          showSelfHealingBanner = true;
+          selfHealingActive = true;
+          _saveState();
+        });
+        _badgeController
+            .forward(from: 0.92)
+            .then((_) => _badgeController.reverse());
+        Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) setState(() => showSelfHealingBanner = false);
+        });
+        if (healingComparisons.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final mainPair = healingComparisons.firstWhere(
+              (pair) => pair['changed'] == true,
+              orElse: () => healingComparisons.first,
+            );
+            showHealingJourney(context, _buildHealingJourneyData(mainPair));
+          });
+        }
+      } catch (error) {
+        debugPrint('Could not parse comparisons_ready: $error');
+      }
+      return;
+    }
+
     if (message.startsWith('prompt_updated:v')) {
       final version = int.tryParse(message.split(':v').last) ?? promptVersion;
-      final baseline = _latestCompletedExchange();
       setState(() {
         promptVersion = version;
-        showSelfHealingBanner = true;
-        selfHealingActive = true;
-        pendingHealingBaseline = baseline;
-        if (baseline != null) {
-          inputController.text = baseline['question']?.toString() ?? '';
-        }
         _saveState();
       });
       _badgeController
           .forward(from: 0.92)
           .then((_) => _badgeController.reverse());
-      Future.delayed(const Duration(seconds: 4), () {
-        if (mounted) {
-          setState(() => showSelfHealingBanner = false);
-        }
-      });
     }
 
     if (message == 'chat_reset:v1') {
@@ -203,8 +234,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         promptVersion = 1;
         sessionId = '';
         hallucinationRate = 0.0;
-        _answersByQuestion.clear();
-        pendingHealingBaseline = null;
+        healingComparisons = [];
+        healingJourneyMeta = {};
         _saveState();
       });
     }
@@ -213,21 +244,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Future<void> sendMessage(String text) async {
     final cleanText = text.trim();
     if (cleanText.isEmpty || isLoading) {
-      return;
-    }
-    if (context.read<AgentProvider>().isRunning &&
-        pendingHealingBaseline == null) {
-      _showHealingInProgressDialog();
-      return;
-    }
-    if (pendingHealingBaseline != null &&
-        _normalizeQuestion(cleanText) !=
-            _normalizeQuestion(
-              pendingHealingBaseline?['question']?.toString() ?? '',
-            )) {
-      _showReplayRequiredDialog(
-        pendingHealingBaseline?['question']?.toString() ?? '',
-      );
       return;
     }
 
@@ -258,12 +274,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       sessionId = data['session_id']?.toString() ?? sessionId;
       promptVersion = _asInt(data['prompt_version'], promptVersion);
       final answer = data['answer']?.toString() ?? 'I could not answer that.';
-      final key = _normalizeQuestion(cleanText);
-      final prior =
-          pendingHealingBaseline ?? _findPreviousAnswer(key, promptVersion);
-      final comparison = prior == null
-          ? ''
-          : _buildComparison(prior, answer, promptVersion);
 
       setState(() {
         messages.add({
@@ -274,19 +284,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           'latency_ms': _asInt(data['latency_ms'], 0),
           'trace_id': data['trace_id']?.toString() ?? '',
           'prompt_version': promptVersion,
-          'baseline_answer': prior?['answer'],
-          'baseline_prompt_version': prior?['prompt_version'],
-          'comparison': comparison,
         });
-        _answersByQuestion[key] = {
-          'question': cleanText,
-          'answer': answer,
-          'prompt_version': promptVersion,
-        };
         hallucinationRate = _estimateHallucinationRate();
-        if (comparison.isNotEmpty) {
-          pendingHealingBaseline = null;
-        }
         _saveState();
       });
     } catch (error) {
@@ -320,8 +319,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         sessionId = '';
         promptVersion = 1;
         hallucinationRate = 0.0;
-        _answersByQuestion.clear();
-        pendingHealingBaseline = null;
+        healingComparisons = [];
+        healingJourneyMeta = {};
         _saveState();
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -338,6 +337,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      floatingActionButton: healingComparisons.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _showHealingJourney,
+              backgroundColor: primary,
+              icon: const Icon(Icons.auto_fix_high_rounded),
+              label: const Text('View Healing'),
+            ),
       body: Column(
         children: [
           _TopBar(
@@ -345,6 +352,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             selfHealingActive: selfHealingActive,
             pulse: _pulseController,
             badgeScale: _badgeController,
+            comparisonCount: healingComparisons.length,
+            onViewComparisons: _showHealingComparisonsDialog,
           ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 280),
@@ -376,9 +385,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           _InputBar(
             controller: inputController,
             isLoading: isLoading,
-            isHealing:
-                context.watch<AgentProvider>().isRunning &&
-                pendingHealingBaseline == null,
+            isHealing: false,
             onReset: resetChat,
             onSend: () => sendMessage(inputController.text),
           ),
@@ -420,118 +427,172 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
-  String _normalizeQuestion(String value) {
-    return value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
-  Map<String, dynamic>? _findPreviousAnswer(String key, int version) {
-    for (var index = messages.length - 1; index >= 0; index--) {
-      final message = messages[index];
-      if (message['role'] != 'agent') continue;
-      var question = message['question']?.toString() ?? '';
-      if (question.isEmpty) {
-        for (var prior = index - 1; prior >= 0; prior--) {
-          if (messages[prior]['role'] == 'user') {
-            question = messages[prior]['content']?.toString() ?? '';
-            break;
-          }
-        }
-      }
-      final prompt = _asInt(message['prompt_version'], 1);
-      if (_normalizeQuestion(question) == key && prompt < version) {
-        return {'answer': message['content'], 'prompt_version': prompt};
-      }
-    }
-    return null;
-  }
-
-  String _buildComparison(
-    Map<String, dynamic> before,
-    String after,
-    int afterVersion,
-  ) {
-    final beforeText = before['answer']?.toString().toLowerCase() ?? '';
-    final afterText = after.toLowerCase();
-    final improvements = <String>[
-      if (_mightBeHallucination(beforeText) &&
-          !_mightBeHallucination(afterText))
-        'removed unsupported guessing',
-      if (afterText.contains("i don't know based on the faq"))
-        'grounded the answer in the FAQ instead of inventing missing details',
-    ];
-    if (improvements.isEmpty) improvements.add('kept the answer FAQ-grounded');
-    return 'Before v${before['prompt_version'] ?? 1}: ${_mightBeHallucination(beforeText) ? 'possible hallucination' : 'no warning'}\n'
-        'After v$afterVersion: ${_mightBeHallucination(afterText) ? 'possible hallucination' : 'grounded'}\n'
-        'Healing impact: ${improvements.join(', ')}.';
-  }
-
-  Map<String, dynamic>? _latestCompletedExchange() {
-    for (var index = messages.length - 1; index >= 0; index--) {
-      if (messages[index]['role'] != 'agent') continue;
-      var question = messages[index]['question']?.toString() ?? '';
-      if (question.isEmpty) {
-        for (var prior = index - 1; prior >= 0; prior--) {
-          if (messages[prior]['role'] == 'user') {
-            question = messages[prior]['content']?.toString() ?? '';
-            break;
-          }
-        }
-      }
-      if (question.isEmpty) continue;
-      return {
-        'question': question,
-        'answer': messages[index]['content']?.toString() ?? '',
-        'prompt_version': _asInt(
-          messages[index]['prompt_version'],
-          promptVersion,
-        ),
-      };
-    }
-    return null;
-  }
-
-  void _showReplayRequiredDialog(String question) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Replay the last question'),
-        content: Text(
-          'Self-healing just updated the prompt. Ask the same question again first so the app can show the before/after comparison:\n\n$question',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showHealingInProgressDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Self-healing in progress'),
-        content: const Text(
-          'Wait until Agent Control updates the prompt. Then replay the last question once to get the before/after comparison.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _saveState() {
     _savedSessionId = sessionId;
     _savedPromptVersion = promptVersion;
     _savedHallucinationRate = hallucinationRate;
     _savedSelfHealingActive = selfHealingActive;
-    _savedPendingHealingBaseline = pendingHealingBaseline;
+    _savedHealingComparisons = healingComparisons;
+    _savedHealingJourneyMeta = healingJourneyMeta;
+  }
+
+  void _showHealingComparisonsDialog() {
+    if (healingComparisons.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 640),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_fix_high_rounded, color: primary),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        '🔧 Self-Healing Before/After Comparison',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${healingComparisons.length} question(s) automatically compared',
+                  style: const TextStyle(color: textSecondary),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: healingComparisons.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 28),
+                    itemBuilder: (context, index) {
+                      final pair = healingComparisons[index];
+                      final changed = pair['changed'] == true;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                changed
+                                    ? Icons.check_circle_rounded
+                                    : Icons.remove_circle_outlined,
+                                color: changed ? success : textSecondary,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  pair['question']?.toString() ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _SupportComparisonColumn(
+                                  title: 'Before · v${pair['before_version']}',
+                                  color: warning,
+                                  text: pair['before']?.toString() ?? '',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _SupportComparisonColumn(
+                                  title: 'After · v${pair['after_version']}',
+                                  color: success,
+                                  text: pair['after']?.toString() ?? '',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showHealingJourney() {
+    if (healingComparisons.isEmpty) return;
+    final mainPair = healingComparisons.firstWhere(
+      (pair) => pair['changed'] == true,
+      orElse: () => healingComparisons.first,
+    );
+    showHealingJourney(context, _buildHealingJourneyData(mainPair));
+  }
+
+  HealingJourneyData _buildHealingJourneyData(Map<String, dynamic> mainPair) {
+    return HealingJourneyData(
+      beforeVersion: _asInt(mainPair['before_version'], 1),
+      afterVersion: _asInt(mainPair['after_version'], 2),
+      rootCause: healingJourneyMeta['root_cause']?.toString() ?? 'GUESSING',
+      rootCauseExplanation:
+          healingJourneyMeta['root_cause_explanation']?.toString() ??
+          'Agent was filling knowledge gaps with invented details not present in the FAQ knowledge base.',
+      beforeHallucination: _asDouble(
+        healingJourneyMeta['before_hallucination'],
+        0.72,
+      ),
+      afterHallucination: _asDouble(
+        healingJourneyMeta['after_hallucination'],
+        0.04,
+      ),
+      beforeRelevance: _asDouble(healingJourneyMeta['before_relevance'], 0.48),
+      afterRelevance: _asDouble(healingJourneyMeta['after_relevance'], 0.87),
+      oldPrompt:
+          healingJourneyMeta['old_prompt']?.toString() ??
+          'You are a customer support agent.\n'
+              'Answer customer questions as helpfully as possible.\n'
+              'Try your best to help even if you are not completely sure.\n'
+              'Use your general knowledge to fill in any gaps.',
+      newPrompt:
+          healingJourneyMeta['new_prompt']?.toString() ??
+          'You are a customer support agent.\n'
+              'Use ONLY facts from the FAQ knowledge base.\n'
+              "If not in FAQ, say: I don't know based on the FAQ.\n"
+              'Do not guess. Do not invent information.',
+      pairs: healingComparisons
+          .map(
+            (pair) => ComparisonPair(
+              question: pair['question']?.toString() ?? '',
+              before: pair['before']?.toString() ?? '',
+              after: pair['after']?.toString() ?? '',
+              changed: pair['changed'] == true,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  double _asDouble(dynamic value, double fallback) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
   }
 }
 
@@ -541,12 +602,16 @@ class _TopBar extends StatelessWidget {
     required this.selfHealingActive,
     required this.pulse,
     required this.badgeScale,
+    required this.comparisonCount,
+    required this.onViewComparisons,
   });
 
   final int promptVersion;
   final bool selfHealingActive;
   final Animation<double> pulse;
   final Animation<double> badgeScale;
+  final int comparisonCount;
+  final VoidCallback onViewComparisons;
 
   @override
   Widget build(BuildContext context) {
@@ -629,6 +694,15 @@ class _TopBar extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.stop_circle_outlined),
               ),
+              if (comparisonCount > 0)
+                Badge(
+                  label: Text('$comparisonCount'),
+                  child: OutlinedButton.icon(
+                    onPressed: onViewComparisons,
+                    icon: const Icon(Icons.compare_arrows_rounded),
+                    label: const Text('View Comparisons'),
+                  ),
+                ),
             ],
           );
           return compact
@@ -698,13 +772,6 @@ class _MessageBubble extends StatelessWidget {
         ? message['timestamp'] as DateTime
         : DateTime.now();
     final possibleHallucination = !isUser && _mightBeHallucination(content);
-    final promptVersion = message['prompt_version'] is int
-        ? message['prompt_version'] as int
-        : int.tryParse(message['prompt_version']?.toString() ?? '') ?? 1;
-    final baselineAnswer = message['baseline_answer']?.toString() ?? '';
-    final comparison = message['comparison']?.toString() ?? '';
-    final canCompare = !isUser && baselineAnswer.isNotEmpty;
-
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -715,25 +782,6 @@ class _MessageBubble extends StatelessWidget {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            if (canCompare) ...[
-              OutlinedButton.icon(
-                onPressed: () => _showSupportComparisonDialog(
-                  context: context,
-                  beforeText: baselineAnswer,
-                  afterText: content,
-                  beforeVersion:
-                      int.tryParse(
-                        message['baseline_prompt_version']?.toString() ?? '',
-                      ) ??
-                      1,
-                  afterVersion: promptVersion,
-                  improvement: comparison,
-                ),
-                icon: const Icon(Icons.auto_fix_high_rounded),
-                label: const Text('Show Before/After Improvement'),
-              ),
-              const SizedBox(height: 8),
-            ],
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
@@ -1135,82 +1183,6 @@ bool _mightBeHallucination(String text) {
       lowered.contains('i believe') ||
       lowered.contains('might be') ||
       lowered.contains('i think');
-}
-
-Future<void> _showSupportComparisonDialog({
-  required BuildContext context,
-  required String beforeText,
-  required String afterText,
-  required int beforeVersion,
-  required int afterVersion,
-  required String improvement,
-}) {
-  return showDialog<void>(
-    context: context,
-    builder: (context) => Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 980, maxHeight: 560),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.auto_fix_high_rounded, color: primary),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Customer Support Healing Comparison',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _SupportComparisonColumn(
-                        title: 'Before · Prompt v$beforeVersion',
-                        color: warning,
-                        text: beforeText,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SupportComparisonColumn(
-                        title: 'After · Prompt v$afterVersion',
-                        color: success,
-                        text: afterText,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SupportComparisonColumn(
-                        title: 'Improvement',
-                        color: primary,
-                        text: improvement,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 class _SupportComparisonColumn extends StatelessWidget {

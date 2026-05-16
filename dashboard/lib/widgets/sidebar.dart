@@ -89,6 +89,12 @@ class _SidebarState extends State<Sidebar> {
             activePath: location,
           ),
           _SidebarItem(
+            icon: Icons.edit_note_rounded,
+            label: 'Post Safety',
+            path: '/posts',
+            activePath: location,
+          ),
+          _SidebarItem(
             icon: Icons.query_stats,
             label: 'Investment Analyst',
             path: '/investment',

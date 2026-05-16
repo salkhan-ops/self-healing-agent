@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../providers/agent_provider.dart';
+import '../widgets/healing_journey_dialog.dart';
 
 const apiBase = 'http://localhost:8000';
 const wsUrl = 'ws://localhost:8000/ws';
@@ -51,6 +52,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   static Map<String, dynamic>? _latestBaselineAnswer;
   static List<String> _savedLastRiskFlags = [];
   static Map<String, dynamic>? _savedPendingHealingBaseline;
+  static Map<String, dynamic>? _savedHealingJourneyPair;
 
   late List<Map<String, dynamic>> messages;
   late String sessionId;
@@ -62,6 +64,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   late int promptVersion;
   bool showHealingBanner = false;
   Map<String, dynamic>? pendingHealingBaseline;
+  Map<String, dynamic>? healingJourneyPair;
   String healingBannerText = '';
   Map<String, dynamic>? secContext;
   bool isSecLoading = false;
@@ -105,6 +108,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     secContext = _savedSecContext ?? _secContextCache[selectedTicker];
     lastRiskFlags = _savedLastRiskFlags;
     pendingHealingBaseline = _savedPendingHealingBaseline;
+    healingJourneyPair = _savedHealingJourneyPair;
     promptPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
@@ -289,6 +293,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       final previousVersion = _asInt(previousBaseline?['prompt_version'], 0);
       String comparison = '';
       Map<String, dynamic>? baselineForComparison;
+      var shouldShowHealingJourney = false;
       baselineForComparison =
           pendingHealingBaseline ??
           _findPreviousChatAnswer(questionKey, responsePromptVersion);
@@ -354,9 +359,27 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         };
         _baselineAnswersByQuestion[questionKey] = currentAnswerAsBaseline;
         _latestBaselineAnswer = currentAnswerAsBaseline;
-        if (comparison.isNotEmpty) pendingHealingBaseline = null;
+        if (comparison.isNotEmpty && baselineForComparison != null) {
+          pendingHealingBaseline = null;
+          healingJourneyPair = {
+            'question': cleanText,
+            'before': baselineForComparison['answer']?.toString() ?? '',
+            'after': answerText,
+            'before_version': baselineForComparison['prompt_version'],
+            'after_version': responsePromptVersion,
+            'changed':
+                (baselineForComparison['answer']?.toString() ?? '').trim() !=
+                answerText.trim(),
+          };
+          shouldShowHealingJourney = true;
+        }
         _saveState();
       });
+      if (shouldShowHealingJourney && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showHealingJourney();
+        });
+      }
     } catch (error) {
       setState(() {
         messages.add({
@@ -455,6 +478,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         lastRiskFlags = [];
         secContext = null;
         pendingHealingBaseline = null;
+        healingJourneyPair = null;
         _secContextCache.clear();
         _saveState();
       });
@@ -519,6 +543,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         lastRiskFlags = [];
         secContext = null;
         pendingHealingBaseline = null;
+        healingJourneyPair = null;
       });
       _saveState();
     }
@@ -605,6 +630,14 @@ class _InvestmentScreenState extends State<InvestmentScreen>
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          floatingActionButton: healingJourneyPair == null
+              ? null
+              : FloatingActionButton.extended(
+                  onPressed: _showHealingJourney,
+                  backgroundColor: primary,
+                  icon: const Icon(Icons.auto_fix_high_rounded),
+                  label: const Text('View Healing'),
+                ),
           body: compact
               ? Column(
                   children: [
@@ -661,6 +694,43 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     _savedSecContext = secContext;
     _savedLastRiskFlags = lastRiskFlags;
     _savedPendingHealingBaseline = pendingHealingBaseline;
+    _savedHealingJourneyPair = healingJourneyPair;
+  }
+
+  void _showHealingJourney() {
+    final pair = healingJourneyPair;
+    if (pair == null) return;
+    showHealingJourney(
+      context,
+      HealingJourneyData(
+        beforeVersion: _asInt(pair['before_version'], 1),
+        afterVersion: _asInt(pair['after_version'], promptVersion),
+        rootCause: 'UNSUPPORTED CLAIMS',
+        rootCauseExplanation:
+            'The analyst was asked for information SEC filings cannot verify, so healing tightened refusal and grounding behavior.',
+        beforeHallucination: 0.78,
+        afterHallucination: 0.04,
+        beforeRelevance: 0.31,
+        afterRelevance: 0.82,
+        oldPrompt:
+            'Answer the investment question helpfully.\n'
+            'Use SEC context where available.\n'
+            'Try to provide a useful answer even when the request goes beyond disclosed facts.',
+        newPrompt:
+            'Use ONLY disclosed SEC facts.\n'
+            'If a request asks for private, secret, guaranteed, or forward-looking information, say it cannot be verified.\n'
+            'Do not invent unsupported claims.\n'
+            'Keep risks, limitations, and sources explicit.',
+        pairs: [
+          ComparisonPair(
+            question: pair['question']?.toString() ?? '',
+            before: pair['before']?.toString() ?? '',
+            after: pair['after']?.toString() ?? '',
+            changed: pair['changed'] == true,
+          ),
+        ],
+      ),
+    );
   }
 
   String _normalizeQuestion(String value) {

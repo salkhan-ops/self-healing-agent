@@ -16,6 +16,7 @@ class MetricsProvider extends ChangeNotifier {
 
   final ApiClient _apiClient;
   Timer? _refreshTimer;
+  StreamSubscription<String>? _webSocketSubscription;
 
   MetricSummary? summary;
   List<MetricPoint> chartData = [];
@@ -49,9 +50,22 @@ class MetricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void listenForUpdates(Stream<String> messageStream) {
+    _webSocketSubscription?.cancel();
+    _webSocketSubscription = messageStream.listen((message) {
+      if (message == 'metrics_updated' ||
+          message.contains('completed') ||
+          message.contains('prompt_updated')) {
+        loadChartData(selectedPeriod);
+        loadSummary();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _webSocketSubscription?.cancel();
     _apiClient.close();
     super.dispose();
   }

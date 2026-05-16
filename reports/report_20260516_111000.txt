@@ -1,0 +1,22 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-05-16 11:10:00
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Customer Support Agent
+Problem: Self-evaluation found room for prompt improvement
+Root Cause: INCOMPLETE — No problematic traces were found, so no concrete failure pattern is available.
+Fix Applied: Strengthened instructions to avoid guessing and verify answers against the FAQ
+
+BEFORE:
+  Hallucination: 0.00
+  Relevance: 1.00
+  Latency: 1367ms
+
+AFTER:
+  Hallucination: 0.00 (-100%)
+  Relevance: 1.00 (+0%)
+  Latency: 1617ms (-18%)
+
+Improvement: -39%
+Human Action Needed: YES
+Reason: Automated prompt change did not improve scores enough (-39%).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

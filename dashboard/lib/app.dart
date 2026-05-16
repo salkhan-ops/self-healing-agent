@@ -13,6 +13,7 @@ import 'screens/charts_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/investment_screen.dart';
+import 'screens/post_screen.dart';
 import 'screens/report_detail_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/scheduler_screen.dart';
@@ -67,6 +68,10 @@ final _router = GoRouter(
           builder: (context, state) => const DashboardScreen(),
         ),
         GoRoute(path: '/chat', builder: (context, state) => const ChatScreen()),
+        GoRoute(
+          path: '/posts',
+          builder: (context, state) => const PostScreen(),
+        ),
         GoRoute(
           path: '/investment',
           builder: (context, state) => const InvestmentScreen(),

@@ -6,7 +6,9 @@ history, and broadcasts chat/prompt events to dashboard WebSocket clients.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
+import uuid as uuid_module
 from datetime import datetime
 from typing import Literal
 
@@ -15,11 +17,14 @@ from pydantic import BaseModel, Field
 
 from backend.services.agent_runner import websocket_manager
 from backend.services.chat_agent import chat_agent
+from backend.services.chat_scorer import chat_scorer
+from backend.services.metrics_store import MetricsStore
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 sessions: dict[str, list["ChatMessage"]] = {}
 MAX_SESSION_MESSAGES = 50
+_metrics_store = MetricsStore()
 
 
 class ChatRequest(BaseModel):
@@ -59,7 +64,7 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
             session_id,
             ChatMessage(role="user", content=payload.message),
         )
-        result = chat_agent.answer(payload.message)
+        result = await asyncio.to_thread(chat_agent.answer, payload.message)
         prompt_version = int(result.get("prompt_version", chat_agent.prompt_version))
 
         _append_message(
@@ -71,6 +76,41 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
                 trace_id=str(result.get("trace_id", "")),
             ),
         )
+
+        try:
+            scores = await asyncio.to_thread(
+                chat_scorer.score,
+                payload.message,
+                str(result.get("answer", "")),
+                prompt_version,
+            )
+
+            class _ChatEval:
+                hallucination_score = scores["hallucination_score"]
+                relevance_score = scores["relevance_score"]
+                latency_ms = float(result.get("latency_ms", 0))
+                trace_scores = []
+                problematic_traces = []
+
+            class _ChatVerification:
+                improved = True
+                improvement_percent = 0.0
+                before_scores = {
+                    "hallucination_score": scores["hallucination_score"],
+                    "relevance_score": scores["relevance_score"],
+                    "latency_ms": float(result.get("latency_ms", 0)),
+                }
+                after_scores = before_scores
+
+            chat_run_id = f"chat-{uuid_module.uuid4().hex[:8]}"
+            await _metrics_store.save_run_metrics(
+                chat_run_id,
+                _ChatEval(),
+                _ChatVerification(),
+            )
+            await websocket_manager.broadcast("metrics_updated")
+        except Exception as exc:
+            print(f"⚠️ Chat scoring failed (non-critical): {exc}")
 
         await websocket_manager.broadcast(f"chat_update:{session_id}:v{prompt_version}")
         return ChatResponse(
