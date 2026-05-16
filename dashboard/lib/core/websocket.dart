@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'app_config.dart';
+
 class WebSocketClient {
-  WebSocketClient({this.url = 'ws://localhost:8000/ws'});
+  WebSocketClient({String? url}) : url = url ?? AppConfig.wsUrl;
 
   final String url;
   final StreamController<String> _messageController =

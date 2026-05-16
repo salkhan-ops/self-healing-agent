@@ -1,13 +1,12 @@
 """Central configuration for the Self-Healing AI Agent.
 
-This file loads environment variables, defines Phoenix localhost settings,
+This file loads environment variables, defines Phoenix settings,
 sets quality thresholds, and stores the system prompts used by the agent.
 """
 
 from __future__ import annotations
 
 import os
-from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -49,26 +48,17 @@ def _get_bool_env(name: str, default: bool) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _local_phoenix_endpoint() -> str:
-    """Return a Phoenix endpoint, forcing the project to use localhost only."""
-    endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006")
-    parsed = urlparse(endpoint)
-
-    if parsed.hostname not in {"localhost", "127.0.0.1"}:
-        print(
-            "⚠️ PHOENIX_COLLECTOR_ENDPOINT must be local; using http://localhost:6006."
-        )
-        return "http://localhost:6006"
-
-    return endpoint.rstrip("/")  # Keep generated API URLs predictable.
-
-
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+PHOENIX_HOST = os.getenv("PHOENIX_HOST", "http://localhost:6006").rstrip("/")
+PHOENIX_COLLECTOR_ENDPOINT = os.getenv(
+    "PHOENIX_COLLECTOR_ENDPOINT",
+    f"{PHOENIX_HOST}/v1/traces",
+).rstrip("/")
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY", "")
-PHOENIX_COLLECTOR_ENDPOINT = _local_phoenix_endpoint()
 PHOENIX_PROJECT_NAME = os.getenv("PHOENIX_PROJECT_NAME", "self-healing-agent")
-
+APP_ENV = os.getenv("APP_ENV", "local")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "")
 
 AGENT_MODE = os.getenv("AGENT_MODE", "cheap").strip().lower()
 if AGENT_MODE not in {"cheap", "full", "local"}:

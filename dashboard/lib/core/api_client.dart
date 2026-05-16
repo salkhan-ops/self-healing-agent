@@ -2,9 +2,12 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'app_config.dart';
+
 class ApiClient {
-  ApiClient({http.Client? client, this.baseUrl = 'http://localhost:8000'})
-    : _client = client ?? http.Client();
+  ApiClient({http.Client? client, String? baseUrl})
+    : baseUrl = baseUrl ?? AppConfig.apiBase,
+      _client = client ?? http.Client();
 
   final String baseUrl;
   final http.Client _client;

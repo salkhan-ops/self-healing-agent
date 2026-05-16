@@ -14,11 +14,12 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
 import '../widgets/healing_journey_dialog.dart';
 
-const apiBase = 'http://localhost:8000';
-const wsUrl = 'ws://localhost:8000/ws';
+const apiBase = AppConfig.apiBase;
+const wsUrl = AppConfig.wsUrl;
 
 const background = Color(0xFF0A0A0F);
 const surface = Color(0xFF12121A);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'core/app_config.dart';
 import 'core/theme.dart';
 import 'providers/agent_provider.dart';
 import 'providers/metrics_provider.dart';
@@ -113,21 +114,21 @@ class _SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(24),
+    return Padding(
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Settings',
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Text(
-                'API http://localhost:8000  •  WebSocket ws://localhost:8000/ws',
+                'API ${AppConfig.apiBase}  •  WebSocket ${AppConfig.wsUrl}',
               ),
             ),
           ),

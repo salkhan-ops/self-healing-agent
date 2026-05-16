@@ -7,10 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
 
-const _apiBase = 'http://localhost:8000';
-const _wsUrl = 'ws://localhost:8000/ws';
+const _apiBase = AppConfig.apiBase;
+const _wsUrl = AppConfig.wsUrl;
 const _primary = Color(0xFF6C63FF);
 const _success = Color(0xFF2ED573);
 const _warning = Color(0xFFFFA502);
@@ -198,32 +199,35 @@ class _PostScreenState extends State<PostScreen> {
         final output = _outputPanel(context);
         return Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _topBar(),
-              const SizedBox(height: 18),
-              Expanded(
-                child: compact
-                    ? ListView(
-                        children: [
-                          composer,
-                          const SizedBox(height: 16),
-                          output,
-                        ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(flex: 4, child: composer),
-                          const SizedBox(width: 16),
-                          Expanded(flex: 6, child: output),
-                        ],
-                      ),
-              ),
-              const SizedBox(height: 16),
-              _historyTable(),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _topBar(),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: compact ? 640 : 420,
+                  child: compact
+                      ? ListView(
+                          children: [
+                            composer,
+                            const SizedBox(height: 16),
+                            output,
+                          ],
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(flex: 4, child: composer),
+                            const SizedBox(width: 16),
+                            Expanded(flex: 6, child: output),
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 16),
+                _historyTable(),
+              ],
+            ),
           ),
         );
       },
@@ -415,45 +419,74 @@ class _PostScreenState extends State<PostScreen> {
             else
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('Time')),
-                    DataColumn(label: Text('Platform')),
-                    DataColumn(label: Text('Prompt v')),
-                    DataColumn(label: Text('Hallucination')),
-                    DataColumn(label: Text('Preview')),
-                  ],
-                  rows: recent.map((item) {
-                    final hallucination = _asDouble(
-                      item['hallucination_score'],
-                    );
-                    final color = _scoreColor(hallucination);
-                    return DataRow(
-                      color: WidgetStatePropertyAll(
-                        color.withValues(alpha: 0.08),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 860),
+                  child: DataTable(
+                    columnSpacing: 28,
+                    columns: const [
+                      DataColumn(
+                        label: SizedBox(width: 72, child: Text('Time')),
                       ),
-                      cells: [
-                        DataCell(
-                          Text(_time(item['timestamp']?.toString() ?? '')),
+                      DataColumn(
+                        label: SizedBox(width: 110, child: Text('Platform')),
+                      ),
+                      DataColumn(
+                        label: SizedBox(width: 90, child: Text('Prompt v')),
+                      ),
+                      DataColumn(
+                        label: SizedBox(
+                          width: 120,
+                          child: Text('Hallucination'),
                         ),
-                        DataCell(
-                          Text(_label(item['platform']?.toString() ?? '')),
+                      ),
+                      DataColumn(
+                        label: SizedBox(width: 360, child: Text('Preview')),
+                      ),
+                    ],
+                    rows: recent.map((item) {
+                      final hallucination = _asDouble(
+                        item['hallucination_score'],
+                      );
+                      final color = _scoreColor(hallucination);
+                      return DataRow(
+                        color: WidgetStatePropertyAll(
+                          color.withValues(alpha: 0.08),
                         ),
-                        DataCell(Text('${item['prompt_version'] ?? ''}')),
-                        DataCell(Text(hallucination.toStringAsFixed(2))),
-                        DataCell(
-                          SizedBox(
-                            width: 320,
-                            child: Text(
-                              item['post']?.toString() ?? '',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                        cells: [
+                          DataCell(
+                            SizedBox(
+                              width: 72,
+                              child: Text(
+                                _time(item['timestamp']?.toString() ?? ''),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
+                          DataCell(
+                            SizedBox(
+                              width: 110,
+                              child: Text(
+                                _label(item['platform']?.toString() ?? ''),
+                                maxLines: 1,
+                                softWrap: false,
+                              ),
+                            ),
+                          ),
+                          DataCell(Text('${item['prompt_version'] ?? ''}')),
+                          DataCell(Text(hallucination.toStringAsFixed(2))),
+                          DataCell(
+                            SizedBox(
+                              width: 360,
+                              child: Text(
+                                item['post']?.toString() ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
           ],

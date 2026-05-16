@@ -27,7 +27,7 @@ from config.settings import (
     DEFAULT_SYSTEM_PROMPT,
     HALLUCINATION_THRESHOLD,
     LATENCY_THRESHOLD_MS,
-    PHOENIX_COLLECTOR_ENDPOINT,
+    PHOENIX_HOST,
     RELEVANCE_THRESHOLD,
     GEMINI_MODEL_NAME,
 )
@@ -46,7 +46,7 @@ def main() -> None:
     questions = load_questions(PROJECT_ROOT / "data" / "faq.txt")
     print(f"📚 Loading FAQ knowledge base... ({len(questions)} Q&As loaded)")
     print(
-        f"🔌 Connecting to Phoenix at {PHOENIX_COLLECTOR_ENDPOINT}... {phoenix_status()}"
+        f"🔌 Connecting to Phoenix at {PHOENIX_HOST}... {phoenix_status()}"
     )
 
     round_questions = questions[:10]
@@ -142,7 +142,7 @@ def phoenix_status() -> str:
     try:
         from urllib.request import urlopen
 
-        with urlopen(f"{PHOENIX_COLLECTOR_ENDPOINT}/arize_phoenix_version", timeout=1):
+        with urlopen(f"{PHOENIX_HOST}/arize_phoenix_version", timeout=1):
             return "✅"
     except Exception:
         return "⚠️ not reachable; continuing with local trace cache"

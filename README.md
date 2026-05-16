@@ -1,10 +1,17 @@
 # Self-Healing AI Agent
 
-This project is a working customer support AI agent that improves its own
-system prompt after observing its answers. It answers questions from a local
-FAQ, records traces to a local Arize Phoenix server, evaluates its own
-performance, diagnoses root causes, rewrites its prompt, verifies the change,
-and writes a plain English incident report.
+This project is a working self-healing AI system with three demo agents:
+
+- a customer-support assistant grounded in a local FAQ,
+- a social-media post generator that learns to stop inventing metrics, and
+- an SEC-grounded investment research assistant.
+
+Each agent records traces to a local Arize Phoenix server. The core healing
+loop reads recent traces through the official Phoenix MCP server, evaluates
+quality, diagnoses failures, rewrites prompts, verifies the change, and saves a
+plain-English incident report. A FastAPI backend and Flutter dashboard expose
+live runs, metrics, reports, schedules, chat flows, post generation, and
+investment analysis.
 
 Built for: **Google Cloud Rapid Agent Hackathon**
 
@@ -33,14 +40,14 @@ This project demonstrates a practical self-healing loop:
           │
           ▼
 ┌────────────────────┐        traces        ┌────────────────────┐
-│  TaskAgent          │ ───────────────────▶ │  Phoenix Local      │
-│  Gemini answers     │                      │  localhost:6006     │
+│  Agents             │ ───────────────────▶ │  Phoenix Local      │
+│  support/posts/SEC  │                      │  localhost:6006     │
 └─────────┬──────────┘                      └─────────┬──────────┘
           │                                           │
           ▼                                           ▼
 ┌────────────────────┐                      ┌────────────────────┐
 │  Evaluator          │ ◀─────────────────── │  TraceReader        │
-│  scores answers     │                      │  reads traces       │
+│  scores answers     │                      │  Phoenix MCP client  │
 └─────────┬──────────┘                      └────────────────────┘
           │
           ▼
@@ -68,6 +75,12 @@ This project demonstrates a practical self-healing loop:
 └────────────────────┘
 ```
 
+## Prerequisites
+
+- Python 3.12
+- Node.js/npm available on `PATH` so `npx` can launch `@arizeai/phoenix-mcp`
+- Flutter if you want to run the dashboard UI
+
 ## Setup
 
 1. Create and activate a Python 3.12 virtual environment:
@@ -93,22 +106,36 @@ cp .env.example .env
 
 ```text
 PHOENIX_API_KEY=your_local_phoenix_key
-PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006
+PHOENIX_HOST=http://localhost:6006
+PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
 
 GOOGLE_API_KEY=your_google_api_key
+AGENT_MODE=cheap
+GEMINI_MODEL_NAME=gemini-2.5-flash-lite
 
 SLACK_WEBHOOK_URL=
 
 HALLUCINATION_THRESHOLD=0.4
 RELEVANCE_THRESHOLD=0.6
 LATENCY_THRESHOLD_MS=3000
+
+SEC_USER_AGENT=SelfHealingAgent/1.0 your_email@example.com
 ```
 
 Secrets must stay in environment variables. Do not hardcode API keys.
 
+`AGENT_MODE` options:
+
+- `cheap`: Gemini answers + local self-evaluation/improvement
+- `full`: Gemini answers + Gemini self-evaluation/improvement
+- `local`: no Gemini calls
+
 ## Run Phoenix Locally
 
-Phoenix is local only for this project. Do not use external Phoenix cloud URLs.
+Phoenix defaults to local development at `http://localhost:6006`, but both the
+host and collector endpoint are environment-driven so Cloud Run can point at a
+self-hosted Phoenix service. The app exports traces over OpenTelemetry and reads
+them back through Phoenix MCP during the healing loop.
 
 Start Phoenix:
 
@@ -143,12 +170,51 @@ The agent will:
 1. Load `data/faq.txt`.
 2. Answer 10 FAQ questions.
 3. Send traces to local Phoenix when available.
-4. Read recent traces.
+4. Read recent traces through the official Phoenix MCP server.
 5. Evaluate hallucination, relevance, and latency.
 6. Analyze the root cause.
 7. Rewrite its system prompt.
 8. Verify the new prompt on the same questions.
 9. Save a report in `reports/`.
+
+If Phoenix is offline, the agent continues with local in-memory traces so local
+development still works.
+
+## Run The Dashboard
+
+The dashboard stack has three moving parts:
+
+```text
+Phoenix      http://localhost:6006
+FastAPI API  http://localhost:8000
+Flutter UI   http://localhost:3000
+```
+
+Start the backend:
+
+```bash
+source venv/bin/activate
+pip install -r backend/requirements_backend.txt
+uvicorn backend.main:app --reload --port 8000
+```
+
+Start the Flutter dashboard in another terminal:
+
+```bash
+cd dashboard
+flutter pub get
+./run.sh
+```
+
+The UI includes:
+
+- Dashboard, charts, reports, scheduler, and agent controls
+- Customer-support chat with before/after healing views
+- Social-media post generation
+- SEC-grounded investment analysis
+- Phoenix connection status and live WebSocket progress
+
+See `README_DASHBOARD.md` for endpoint details and the embeddable widget.
 
 ## Sample Output
 
@@ -234,8 +300,10 @@ Run:
 docker run --env-file .env self-healing-agent
 ```
 
-For Phoenix tracing from inside Docker, make sure the container can reach the
-host Phoenix server at `localhost:6006` or adjust networking for your platform.
+For Phoenix tracing from inside Docker or Cloud Run, set `PHOENIX_HOST` and
+`PHOENIX_COLLECTOR_ENDPOINT` to a reachable Phoenix service and make sure
+Node/npm are available if the container also needs to execute the MCP trace-read
+path.
 
 ## Project Structure
 
@@ -250,12 +318,20 @@ self-healing-agent/
 │   ├── improver.py
 │   ├── verifier.py
 │   └── reporter.py
+├── backend/
+│   ├── main.py
+│   ├── routes/
+│   └── services/
 ├── config/
 │   └── settings.py
+├── dashboard/
+│   └── lib/
 ├── data/
 │   └── faq.txt
 ├── tests/
-│   └── test_loop.py
+│   ├── test_loop.py
+│   ├── test_investment_agent.py
+│   └── test_sec_client.py
 ├── deploy/
 │   └── Dockerfile
 └── README.md
@@ -263,7 +339,10 @@ self-healing-agent/
 
 ## Notes
 
-- Phoenix must point to `http://localhost:6006`.
-- Gemini model: `gemini-2.0-flash-exp`.
+- Local Phoenix defaults to `http://localhost:6006`; cloud deployments should
+  use a reachable self-hosted Phoenix URL instead.
+- The core FAQ loop uses `GEMINI_MODEL_NAME` from `.env` (default:
+  `gemini-2.5-flash-lite`).
+- The dashboard post and investment agents currently use `gemini-2.5-flash`.
 - Reports are saved locally in `reports/`.
 - Slack reporting is optional and only runs when `SLACK_WEBHOOK_URL` is set.

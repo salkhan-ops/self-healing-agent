@@ -13,11 +13,12 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
 import '../widgets/healing_journey_dialog.dart';
 
-const apiBase = 'http://localhost:8000';
-const wsUrl = 'ws://localhost:8000/ws';
+const apiBase = AppConfig.apiBase;
+const wsUrl = AppConfig.wsUrl;
 
 const background = Color(0xFF0A0A0F);
 const surface = Color(0xFF12121A);
@@ -558,101 +559,89 @@ class _InvestmentScreenState extends State<InvestmentScreen>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 1180;
-        final conversation = Column(
-          children: [
-            _Header(promptVersion: promptVersion, badgeScale: promptPulse),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              child: showHealingBanner
-                  ? _HealingBanner(text: healingBannerText)
-                  : const SizedBox.shrink(),
+    return Scaffold(
+      backgroundColor: background,
+      floatingActionButton: healingJourneyPair == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _showHealingJourney,
+              backgroundColor: primary,
+              icon: const Icon(Icons.auto_fix_high_rounded),
+              label: const Text('View Healing'),
             ),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                itemCount: messages.length + (isLoading ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == messages.length) return const _TypingCard();
-                  return _MessageCard(message: messages[index]);
-                },
-              ),
-            ),
-            _QuestionChips(
-              normalQuestions: normalQuestions,
-              riskyQuestions: riskyQuestions,
-              hallucinationQuestions: hallucinationQuestions,
-              initiallyCollapsed: messages.any(
-                (message) => message['role'] == 'user',
-              ),
-              onSelected: sendMessage,
-            ),
-            _InputBar(
-              controller: inputController,
-              isLoading: isLoading,
-              isHealing:
-                  context.watch<AgentProvider>().isRunning &&
-                  pendingHealingBaseline == null,
-              canSend: _hasLoadedContextForSelectedTicker(),
-              onReset: resetInvestmentAgent,
-              onSend: () => sendMessage(inputController.text),
-            ),
-          ],
-        );
-        final analystPanel = _AnalystPanel(
-          tickers: tickers,
-          selectedTicker: selectedTicker,
-          promptVersion: promptVersion,
-          secContext: secContext,
-          lastRiskFlags: lastRiskFlags,
-          onTickerChanged: (value) {
-            if (value == null) return;
-            setState(() {
-              selectedTicker = value.trim().toUpperCase();
-              if (selectedTicker.isNotEmpty &&
-                  !tickers.contains(selectedTicker)) {
-                tickers = [selectedTicker, ...tickers];
-              }
-              _savedSelectedTicker = selectedTicker;
-              _savedTickers = tickers;
-              secContext = _secContextCache[selectedTicker];
-              _savedSecContext = secContext;
-              secContextError = '';
-            });
-          },
-          onLoadSecContext: loadSecContext,
-          isSecLoading: isSecLoading,
-          secContextError: secContextError,
-        );
-
-        return Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          floatingActionButton: healingJourneyPair == null
-              ? null
-              : FloatingActionButton.extended(
-                  onPressed: _showHealingJourney,
-                  backgroundColor: primary,
-                  icon: const Icon(Icons.auto_fix_high_rounded),
-                  label: const Text('View Healing'),
+      body: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                _Header(promptVersion: promptVersion, badgeScale: promptPulse),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  child: showHealingBanner
+                      ? _HealingBanner(text: healingBannerText)
+                      : const SizedBox.shrink(),
                 ),
-          body: compact
-              ? Column(
-                  children: [
-                    Expanded(child: conversation),
-                    SizedBox(height: 380, child: analystPanel),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(flex: 3, child: conversation),
-                    SizedBox(width: 330, child: analystPanel),
-                  ],
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                    itemCount: messages.length + (isLoading ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == messages.length) return const _TypingCard();
+                      return _MessageCard(message: messages[index]);
+                    },
+                  ),
                 ),
-        );
-      },
+                _QuestionChips(
+                  normalQuestions: normalQuestions,
+                  riskyQuestions: riskyQuestions,
+                  hallucinationQuestions: hallucinationQuestions,
+                  initiallyCollapsed: messages.any(
+                    (message) => message['role'] == 'user',
+                  ),
+                  onSelected: sendMessage,
+                ),
+                _InputBar(
+                  controller: inputController,
+                  isLoading: isLoading,
+                  isHealing:
+                      context.watch<AgentProvider>().isRunning &&
+                      pendingHealingBaseline == null,
+                  canSend: _hasLoadedContextForSelectedTicker(),
+                  onReset: resetInvestmentAgent,
+                  onSend: () => sendMessage(inputController.text),
+                ),
+              ],
+            ),
+          ),
+          _AnalystPanel(
+            tickers: tickers,
+            selectedTicker: selectedTicker,
+            promptVersion: promptVersion,
+            secContext: secContext,
+            lastRiskFlags: lastRiskFlags,
+            onTickerChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                selectedTicker = value.trim().toUpperCase();
+                if (selectedTicker.isNotEmpty &&
+                    !tickers.contains(selectedTicker)) {
+                  tickers = [selectedTicker, ...tickers];
+                }
+                _savedSelectedTicker = selectedTicker;
+                _savedTickers = tickers;
+                secContext = _secContextCache[selectedTicker];
+                _savedSecContext = secContext;
+                secContextError = '';
+              });
+            },
+            onLoadSecContext: loadSecContext,
+            isSecLoading: isSecLoading,
+            secContextError: secContextError,
+          ),
+        ],
+      ),
     );
   }
 
@@ -857,63 +846,41 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final agent = context.watch<AgentProvider>();
     return Container(
-      constraints: const BoxConstraints(minHeight: 86),
+      height: 86,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor),
-        ),
+      decoration: const BoxDecoration(
+        color: surface,
+        border: Border(bottom: BorderSide(color: card)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 760;
-          final title = const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Investment Analyst',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'SEC-grounded research assistant · Not financial advice',
-                style: TextStyle(color: textMuted),
-              ),
-            ],
-          );
-          final actions = Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              ScaleTransition(
-                scale: badgeScale,
-                child: _Badge(text: 'Prompt v$promptVersion', color: primary),
-              ),
-              const _Badge(text: 'Self-Healing Active', color: success),
-              const _Badge(text: 'SEC Data', color: accent),
-              _AgentRunControls(agent: agent),
-            ],
-          );
-          return compact
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [title, const SizedBox(height: 10), actions],
-                  ),
-                )
-              : Row(
-                  children: [
-                    Expanded(child: title),
-                    actions,
-                  ],
-                );
-        },
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Investment Analyst',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'SEC-grounded research assistant · Not financial advice',
+                  style: TextStyle(color: textMuted),
+                ),
+              ],
+            ),
+          ),
+          ScaleTransition(
+            scale: badgeScale,
+            child: _Badge(text: 'Prompt v$promptVersion', color: primary),
+          ),
+          const SizedBox(width: 10),
+          const _Badge(text: 'Self-Healing Active', color: success),
+          const SizedBox(width: 10),
+          const _Badge(text: 'SEC Data', color: accent),
+        ],
       ),
     );
   }
@@ -998,31 +965,17 @@ class _MessageCard extends StatelessWidget {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            if (canCompare) ...[
-              _ShowComparisonButton(
-                beforeText: baselineAnswer,
-                afterText: content,
-                beforeVersion: _asInt(message['baseline_prompt_version'], 1),
-                afterVersion: promptVersion,
-                beforeFlags: _stringList(message['baseline_risk_flags']),
-                afterFlags: riskFlags,
-                improvement: comparison,
-              ),
-              const SizedBox(height: 8),
-            ],
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: isUser ? primary : Theme.of(context).cardColor,
+                color: isUser ? primary : card,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
                   bottomLeft: Radius.circular(isUser ? 18 : 4),
                   bottomRight: Radius.circular(isUser ? 4 : 18),
                 ),
-                border: isUser
-                    ? null
-                    : Border.all(color: Theme.of(context).dividerColor),
+                border: isUser ? null : Border.all(color: surface),
               ),
               child: isUser
                   ? SelectableText(
@@ -1129,7 +1082,7 @@ class _FormattedAnswer extends StatelessWidget {
             child: SelectableText(
               line,
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
+                color: textMain,
                 height: 1.35,
                 fontSize: _isHeading(line) ? 15 : 14,
                 fontWeight: _isHeading(line)
@@ -1295,48 +1248,6 @@ class _CompareChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ShowComparisonButton extends StatelessWidget {
-  const _ShowComparisonButton({
-    required this.beforeText,
-    required this.afterText,
-    required this.beforeVersion,
-    required this.afterVersion,
-    required this.beforeFlags,
-    required this.afterFlags,
-    required this.improvement,
-  });
-
-  final String beforeText;
-  final String afterText;
-  final int beforeVersion;
-  final int afterVersion;
-  final List<String> beforeFlags;
-  final List<String> afterFlags;
-  final String improvement;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: () => _showHealingComparisonDialog(
-        context: context,
-        beforeText: beforeText,
-        afterText: afterText,
-        beforeVersion: beforeVersion,
-        afterVersion: afterVersion,
-        beforeFlags: beforeFlags,
-        afterFlags: afterFlags,
-        improvement: improvement,
-      ),
-      icon: const Icon(Icons.auto_fix_high_rounded),
-      label: const Text('Show Before/After Improvement'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        side: BorderSide(color: primary.withValues(alpha: 0.65)),
       ),
     );
   }
@@ -2160,7 +2071,7 @@ class _AnalystPanel extends StatelessWidget {
               children: [
                 _InfoLine('Prompt version', 'v$promptVersion'),
                 const _InfoLine('Self-healing', 'Active'),
-                const _InfoLine('Phoenix tracing', 'localhost:6006'),
+                const _InfoLine('Phoenix tracing', 'Configured by backend'),
               ],
             ),
           ),
@@ -2417,42 +2328,6 @@ class _Badge extends StatelessWidget {
           fontSize: 12,
         ),
       ),
-    );
-  }
-}
-
-class _AgentRunControls extends StatelessWidget {
-  const _AgentRunControls({required this.agent});
-
-  final AgentProvider agent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton.outlined(
-          tooltip: 'Run Agent Control',
-          onPressed: agent.isRunning ? null : agent.runNow,
-          style: IconButton.styleFrom(
-            foregroundColor: success,
-            side: BorderSide(color: success.withValues(alpha: 0.7)),
-          ),
-          icon: const Icon(Icons.play_arrow_rounded),
-        ),
-        const SizedBox(width: 6),
-        IconButton.outlined(
-          tooltip: 'Stop Agent Control',
-          onPressed: agent.isRunning && !agent.isStopping
-              ? agent.stopNow
-              : null,
-          style: IconButton.styleFrom(
-            foregroundColor: danger,
-            side: BorderSide(color: danger.withValues(alpha: 0.7)),
-          ),
-          icon: const Icon(Icons.stop_circle_outlined),
-        ),
-      ],
     );
   }
 }

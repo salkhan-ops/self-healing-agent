@@ -13,7 +13,6 @@ import time
 import uuid
 import warnings
 from typing import Any
-from urllib.request import urlopen
 
 from dotenv import load_dotenv
 
@@ -29,22 +28,14 @@ except ImportError:
 
 try:
     from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 except ImportError:
     trace = None
-    OTLPSpanExporter = None
-    Resource = None
-    TracerProvider = None
-    BatchSpanProcessor = None
 
 
 load_dotenv()
 
 MODEL_NAME = "gemini-2.5-flash"
-PHOENIX_ENDPOINT = "http://localhost:6006"
+from config.phoenix_tracing import configure_phoenix_tracing
 WEAK_INVESTMENT_PROMPT = """
 You are an investment research assistant.
 Help users understand companies and stocks.
@@ -487,21 +478,11 @@ Rules:
             return None
 
     def _setup_tracing(self):
-        """Configure OpenTelemetry export to local Phoenix if available."""
+        """Configure OpenTelemetry export to Phoenix if available."""
         if trace is None:
             return _NoopTracer()
         if not InvestmentAgent._tracing_ready:
-            try:
-                with urlopen(f"{PHOENIX_ENDPOINT}/arize_phoenix_version", timeout=0.5):
-                    provider = TracerProvider(
-                        resource=Resource.create({"service.name": "investment-agent"})
-                    )
-                    exporter = OTLPSpanExporter(endpoint=f"{PHOENIX_ENDPOINT}/v1/traces")
-                    provider.add_span_processor(BatchSpanProcessor(exporter))
-                    trace.set_tracer_provider(provider)
-                    print("✅ Investment tracing connected to Phoenix localhost:6006")
-            except Exception:
-                print("⚠️ Phoenix not reachable at localhost:6006; investment traces stay local.")
+            configure_phoenix_tracing("InvestmentAgent")
             InvestmentAgent._tracing_ready = True
         return trace.get_tracer(__name__)
 

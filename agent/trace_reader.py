@@ -1,24 +1,29 @@
 """Phoenix trace reader for the Self-Healing AI Agent.
 
-This module connects to the local Phoenix server, retrieves recent traces,
+This module connects to Phoenix, retrieves recent traces,
 and extracts score and latency fields for self-evaluation.
 """
 
 from __future__ import annotations
 
 import os
+import json
 from typing import Any
 from urllib.request import urlopen
 
-from config.settings import PHOENIX_COLLECTOR_ENDPOINT, PHOENIX_PROJECT_NAME
+import anyio
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+from config.settings import PHOENIX_HOST, PHOENIX_PROJECT_NAME
 
 
 class TraceReader:
-    """Read recent agent traces from local Phoenix."""
+    """Read recent agent traces from Phoenix through MCP."""
 
     def __init__(
         self,
-        endpoint: str = PHOENIX_COLLECTOR_ENDPOINT,
+        endpoint: str = PHOENIX_HOST,
         project_name: str = PHOENIX_PROJECT_NAME,
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
@@ -26,8 +31,72 @@ class TraceReader:
         self.client = None
 
     def get_recent_traces(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Return empty list — agent uses local traces from the current run."""
-        return []
+        """Read recent traces through Phoenix's official MCP server."""
+        if not self._phoenix_is_available():
+            return []
+
+        try:
+            response = self.query_phoenix_via_mcp(
+                "list-traces",
+                params={"project_name": self.project_name, "limit": limit},
+            )
+        except Exception as exc:
+            print(f"⚠️ Could not read Phoenix traces via MCP: {exc}")
+            return []
+
+        traces = self._extract_mcp_traces(response)
+        return [self._normalize_trace(trace) for trace in traces]
+
+    def query_phoenix_via_mcp(
+        self,
+        query: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Query Phoenix traces via the official MCP server.
+
+        This keeps the self-healing loop on the required MCP integration path
+        for the Arize track while still failing closed when local Phoenix or
+        the Node package is unavailable.
+        """
+        return anyio.run(
+            self._query_phoenix_via_mcp_async,
+            query,
+            params
+            or {
+                "project_name": self.project_name,
+                "limit": 10,
+            },
+        )
+
+    async def _query_phoenix_via_mcp_async(
+        self,
+        query: str,
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Open a real MCP stdio session and call one Phoenix tool."""
+        server = StdioServerParameters(
+            command="npx",
+            args=[
+                "-y",
+                "@arizeai/phoenix-mcp@latest",
+                "--baseUrl",
+                self.endpoint,
+            ],
+            env=os.environ.copy(),
+        )
+        async with stdio_client(server) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                result = await session.call_tool(query, params)
+
+        if result.isError:
+            raise RuntimeError(self._mcp_content_to_text(result.content) or query)
+
+        if result.structuredContent:
+            return result.structuredContent
+
+        return self._mcp_content_to_json(result.content)
 
     def get_trace_scores(self, traces: list[dict[str, Any]]) -> dict[str, Any]:
         """Return per-trace score fields plus average hallucination, relevance, and latency."""
@@ -77,7 +146,7 @@ class TraceReader:
             return self.client
 
         os.environ.setdefault("PHOENIX_WORKING_DIR", "/tmp/phoenix")
-        os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = self.endpoint
+        os.environ["PHOENIX_HOST"] = self.endpoint
         os.environ["PHOENIX_PROJECT_NAME"] = self.project_name
 
         try:
@@ -101,14 +170,8 @@ class TraceReader:
             print(f"⚠️ Could not create Phoenix client: {exc}")
             return None
 
-    def _is_local_endpoint(self) -> bool:
-        """Confirm the configured endpoint is the required local Phoenix server."""
-        return self.endpoint.startswith(
-            "http://localhost:6006"
-        ) or self.endpoint.startswith("http://127.0.0.1:6006")
-
     def _phoenix_is_available(self) -> bool:
-        """Check the Phoenix server before calling the Python client."""
+        """Check the Phoenix server before calling MCP."""
         try:
             with urlopen(f"{self.endpoint}/arize_phoenix_version", timeout=1):
                 return True
@@ -157,6 +220,66 @@ class TraceReader:
                 "attributes.relevance_score",
             ),
         }
+
+    def _extract_mcp_traces(self, response: dict[str, Any]) -> list[dict[str, Any]]:
+        """Accept the common MCP response envelopes and return raw trace rows."""
+        candidates = (
+            response.get("traces"),
+            response.get("data"),
+            response.get("result"),
+            response.get("content"),
+        )
+
+        for candidate in candidates:
+            traces = self._coerce_trace_list(candidate)
+            if traces:
+                return traces
+
+        return []
+
+    def _coerce_trace_list(self, value: Any) -> list[dict[str, Any]]:
+        """Normalize nested MCP content into a list of trace dictionaries."""
+        if isinstance(value, list):
+            if all(isinstance(item, dict) for item in value):
+                return value
+
+            for item in value:
+                traces = self._coerce_trace_list(item)
+                if traces:
+                    return traces
+
+        if isinstance(value, dict):
+            for key in ("traces", "data", "items", "result"):
+                traces = self._coerce_trace_list(value.get(key))
+                if traces:
+                    return traces
+
+        if isinstance(value, str):
+            try:
+                return self._coerce_trace_list(json.loads(value))
+            except json.JSONDecodeError:
+                return []
+
+        return []
+
+    def _mcp_content_to_json(self, content: list[Any]) -> dict[str, Any]:
+        """Parse JSON text content returned by MCP tools."""
+        text = self._mcp_content_to_text(content)
+        if not text:
+            return {}
+
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return {"content": text}
+
+        return parsed if isinstance(parsed, dict) else {"content": parsed}
+
+    def _mcp_content_to_text(self, content: list[Any]) -> str:
+        """Join text-bearing MCP content blocks into one string."""
+        return "\n".join(
+            item.text for item in content if getattr(item, "type", None) == "text"
+        ).strip()
 
     def _first_value(self, row: dict[str, Any], *keys: str) -> Any:
         """Return the first non-empty value from a row for several possible Phoenix columns."""

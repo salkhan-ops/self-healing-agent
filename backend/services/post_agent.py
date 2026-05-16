@@ -12,7 +12,6 @@ import time
 import uuid
 import warnings
 from typing import Any
-from urllib.request import urlopen
 
 from dotenv import load_dotenv
 
@@ -25,18 +24,8 @@ except ImportError:
 
 try:
     from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-        OTLPSpanExporter,
-    )
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 except ImportError:
     trace = None
-    OTLPSpanExporter = None
-    Resource = None
-    TracerProvider = None
-    BatchSpanProcessor = None
 
 load_dotenv()
 
@@ -71,7 +60,7 @@ PLATFORM_INSTRUCTIONS = {
 }
 
 MODEL_NAME = "gemini-2.5-flash"
-PHOENIX_ENDPOINT = "http://localhost:6006"
+from config.phoenix_tracing import configure_phoenix_tracing
 
 
 class PostAgent:
@@ -216,32 +205,9 @@ Generate the post now.
         if trace is None:
             return _NoopTracer()
         if not PostAgent._tracing_ready:
-            self._configure_exporter()
+            configure_phoenix_tracing("PostAgent")
             PostAgent._tracing_ready = True
         return trace.get_tracer(__name__)
-
-    def _configure_exporter(self) -> None:
-        """Send spans to local Phoenix."""
-        try:
-            if not self._phoenix_available():
-                return
-            resource = Resource.create({"service.name": "self-healing-post-agent"})
-            provider = TracerProvider(resource=resource)
-            exporter = OTLPSpanExporter(endpoint=f"{PHOENIX_ENDPOINT}/v1/traces")
-            provider.add_span_processor(BatchSpanProcessor(exporter))
-            trace.set_tracer_provider(provider)
-        except Exception as exc:
-            print(f"⚠️ Post tracing setup failed: {exc}")
-
-    def _phoenix_available(self) -> bool:
-        try:
-            with urlopen(
-                f"{PHOENIX_ENDPOINT}/arize_phoenix_version",
-                timeout=0.5,
-            ):
-                return True
-        except Exception:
-            return False
 
 
 class _NoopTracer:

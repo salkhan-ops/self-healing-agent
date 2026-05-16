@@ -1,0 +1,14 @@
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+reports/
+*.log
+.DS_Store
+
+# Include the production Flutter bundle so FastAPI can serve the UI at `/`.
+!dashboard/build/
+!dashboard/build/web/
+!dashboard/build/web/**

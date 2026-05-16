@@ -6,12 +6,10 @@ and records each interaction as an OpenTelemetry trace for local Phoenix.
 
 from __future__ import annotations
 
-import os
 import time
 import warnings
 from pathlib import Path
 from typing import Iterable
-from urllib.request import urlopen
 
 try:
     with warnings.catch_warnings():
@@ -29,23 +27,14 @@ except ImportError:
 
 try:
     from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 except ImportError:
     trace = None
-    OTLPSpanExporter = None
-    Resource = None
-    TracerProvider = None
-    BatchSpanProcessor = None
 
+from config.phoenix_tracing import configure_phoenix_tracing
 from config.settings import (
     DEFAULT_SYSTEM_PROMPT,
     GEMINI_MODEL_NAME,
     GOOGLE_API_KEY,
-    PHOENIX_API_KEY,
-    PHOENIX_COLLECTOR_ENDPOINT,
     PHOENIX_PROJECT_NAME,
     USE_GEMINI_ANSWERS,
 )
@@ -120,7 +109,7 @@ class TaskAgent:
             return None
 
     def _setup_tracing(self):
-        """Configure OpenTelemetry export to local Phoenix and return a tracer."""
+        """Configure OpenTelemetry export to Phoenix and return a tracer."""
         if trace is None:
             print(
                 "⚠️ OpenTelemetry packages are missing. "
@@ -129,46 +118,11 @@ class TaskAgent:
             return _NoopTracer()
 
         if not TaskAgent._tracing_ready:
-            self._configure_phoenix_exporter()
+            configure_phoenix_tracing("TaskAgent")
             self._instrument_google_genai()
             TaskAgent._tracing_ready = True
 
         return trace.get_tracer(__name__)
-
-    def _configure_phoenix_exporter(self) -> None:
-        """Send spans to the local Phoenix OTLP endpoint."""
-        try:
-            os.environ.setdefault("PHOENIX_WORKING_DIR", "/tmp/phoenix")
-            endpoint = f"{PHOENIX_COLLECTOR_ENDPOINT}/v1/traces"
-            headers = {}
-
-            if not self._phoenix_is_available():
-                print(f"⚠️ Phoenix is not reachable at {PHOENIX_COLLECTOR_ENDPOINT}; traces will be local only.")
-                return
-
-            if PHOENIX_API_KEY:
-                headers["authorization"] = f"Bearer {PHOENIX_API_KEY}"
-
-            resource = Resource.create(
-                {
-                    "service.name": "self-healing-agent",
-                    "phoenix.project.name": PHOENIX_PROJECT_NAME,
-                }
-            )
-            provider = TracerProvider(resource=resource)
-            exporter = OTLPSpanExporter(endpoint=endpoint, headers=headers)
-            provider.add_span_processor(BatchSpanProcessor(exporter))
-            trace.set_tracer_provider(provider)
-        except Exception as exc:
-            print(f"⚠️ Phoenix tracing setup failed; continuing without export. Error: {exc}")
-
-    def _phoenix_is_available(self) -> bool:
-        """Check Phoenix availability before enabling network trace export."""
-        try:
-            with urlopen(PHOENIX_COLLECTOR_ENDPOINT, timeout=0.5):
-                return True
-        except Exception:
-            return False
 
     def _instrument_google_genai(self) -> None:
         """Enable OpenInference instrumentation when the package is available."""

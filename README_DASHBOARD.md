@@ -1,8 +1,9 @@
 # Self-Healing Agent Dashboard
 
 This dashboard adds a FastAPI backend, Flutter web UI, live WebSocket output,
-schedules, reports, metrics, and an embeddable mini widget for the
-Self-Healing AI Agent.
+schedules, reports, metrics, customer-support chat, social-media post
+generation, SEC-grounded investment analysis, and an embeddable mini widget for
+the Self-Healing AI Agent.
 
 ## 1. Start Phoenix
 
@@ -23,8 +24,13 @@ Create an API key in `Settings -> API Keys -> Create`, then put it in `.env`:
 
 ```text
 PHOENIX_API_KEY=your_local_key
-PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006
+PHOENIX_HOST=http://localhost:6006
+PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
 ```
+
+The healing loop reads recent traces through the official Phoenix MCP server, so
+Node.js/npm must be available on `PATH` for the backend process that runs the
+agent loop.
 
 ## 2. Start Backend
 
@@ -103,8 +109,39 @@ Agent:
 
 ```text
 POST /api/agent/run
+POST /api/agent/stop
 GET /api/agent/status
 WS /ws
+```
+
+Customer support chat:
+
+```text
+POST /api/chat/message
+GET /api/chat/history/{session_id}
+GET /api/chat/status
+POST /api/chat/reset
+```
+
+Social-media posts:
+
+```text
+POST /api/posts/generate
+GET /api/posts/history
+GET /api/posts/status
+POST /api/posts/reset
+```
+
+Investment research:
+
+```text
+POST /api/investment/message
+GET /api/investment/status
+GET /api/investment/history/{session_id}
+POST /api/investment/reset
+GET /api/investment/tickers
+GET /api/investment/sec/{ticker}
+POST /api/investment/evaluate
 ```
 
 FAQ:

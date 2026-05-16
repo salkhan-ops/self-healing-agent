@@ -12,7 +12,6 @@ import uuid
 import warnings
 from pathlib import Path
 from typing import Any
-from urllib.request import urlopen
 
 from dotenv import load_dotenv
 
@@ -26,16 +25,8 @@ except ImportError:
 
 try:
     from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 except ImportError:
     trace = None
-    OTLPSpanExporter = None
-    Resource = None
-    TracerProvider = None
-    BatchSpanProcessor = None
     print(
         "⚠️ OpenTelemetry packages missing. "
         "Fix with: pip install opentelemetry-sdk opentelemetry-exporter-otlp"
@@ -54,7 +45,7 @@ Use your general knowledge to fill in any gaps.
 MODEL_NAME = "gemini-2.5-flash"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FAQ_PATH = PROJECT_ROOT / "data" / "faq.txt"
-PHOENIX_ENDPOINT = "http://localhost:6006"
+from config.phoenix_tracing import configure_phoenix_tracing
 
 
 class ChatAgent:
@@ -197,44 +188,15 @@ Answer the customer in a friendly support tone.
             return None
 
     def _setup_tracing(self):
-        """Configure OpenTelemetry traces to local Phoenix when available."""
+        """Configure OpenTelemetry traces to Phoenix when available."""
         if trace is None:
             return _NoopTracer()
 
         if not ChatAgent._tracing_ready:
-            self._configure_phoenix_exporter()
+            configure_phoenix_tracing("ChatAgent")
             ChatAgent._tracing_ready = True
 
         return trace.get_tracer(__name__)
-
-    def _configure_phoenix_exporter(self) -> None:
-        """Send chat spans to the local Phoenix OTLP endpoint if it is reachable."""
-        try:
-            if not self._phoenix_available():
-                print("⚠️ Phoenix not reachable at localhost:6006; chat traces stay local.")
-                return
-
-            resource = Resource.create(
-                {
-                    "service.name": "self-healing-chat-agent",
-                    "openinference.project.name": "self-healing-agent",
-                }
-            )
-            provider = TracerProvider(resource=resource)
-            exporter = OTLPSpanExporter(endpoint=f"{PHOENIX_ENDPOINT}/v1/traces")
-            provider.add_span_processor(BatchSpanProcessor(exporter))
-            trace.set_tracer_provider(provider)
-            print("✅ Chat tracing connected to Phoenix at localhost:6006")
-        except Exception as exc:
-            print(f"⚠️ Chat tracing setup failed; continuing without Phoenix export. Error: {exc}")
-
-    def _phoenix_available(self) -> bool:
-        """Check local Phoenix before enabling OTLP export."""
-        try:
-            with urlopen(f"{PHOENIX_ENDPOINT}/arize_phoenix_version", timeout=0.5):
-                return True
-        except Exception:
-            return False
 
     def _load_faq(self) -> str:
         """Load FAQ text from the project data folder."""
