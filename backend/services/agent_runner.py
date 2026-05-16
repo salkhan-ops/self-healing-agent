@@ -182,19 +182,27 @@ class AgentRunner:
         chat_agent.update_prompt(new_prompt)
         self._broadcast_from_thread(f"prompt_updated:v{chat_agent.prompt_version}")
         try:
-            from backend.services.post_agent import HEALED_POST_PROMPT, post_agent
+            from backend.services.post_agent import post_agent
+            from backend.services.post_healer import post_healer
 
-            post_agent.update_prompt(HEALED_POST_PROMPT)
-            self._broadcast_from_thread(
-                f"post_prompt_updated:v{post_agent.prompt_version}"
-            )
+            post_healing = post_healer.heal_recent_posts()
+            if post_healing is not None:
+                post_agent.update_prompt(post_healing.new_prompt)
+                self._broadcast_from_thread(
+                    f"post_prompt_updated:v{post_agent.prompt_version}"
+                )
         except Exception as exc:
             print(f"Could not update post agent: {exc}")
         try:
             from backend.services.investment_agent import investment_agent
+            from backend.services.investment_healer import investment_healer
 
-            investment_agent.update_prompt(new_prompt)
-            self._broadcast_from_thread(f"investment_prompt_updated:v{investment_agent.prompt_version}")
+            investment_healing = investment_healer.heal_recent_answers()
+            if investment_healing is not None:
+                investment_agent.update_prompt(investment_healing.new_prompt)
+                self._broadcast_from_thread(
+                    f"investment_prompt_updated:v{investment_agent.prompt_version}"
+                )
         except Exception as exc:
             print(f"Could not update investment agent: {exc}")
         self._broadcast_from_thread(f"run:{run_id}:prompt_updated")

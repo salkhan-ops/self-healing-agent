@@ -1,7 +1,7 @@
 """Social media post generation API routes.
 
 Exposes generate, status, reset, and history endpoints for the social media
-post safety use case.
+posts use case.
 """
 
 from __future__ import annotations
@@ -17,13 +17,11 @@ from pydantic import BaseModel, Field
 from backend.services.agent_runner import websocket_manager
 from backend.services.metrics_store import MetricsStore
 from backend.services.post_agent import post_agent
+from backend.services.post_history_store import add_post, clear_posts, list_posts
 from backend.services.post_scorer import post_scorer
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 _metrics_store = MetricsStore()
-post_history: list[dict] = []
-MAX_HISTORY = 50
-
 
 class PostRequest(BaseModel):
     brief: str = Field(min_length=1)
@@ -70,9 +68,7 @@ async def generate_post(payload: PostRequest) -> PostResponse:
             "latency_ms": int(result.get("latency_ms", 0)),
             "trace_id": str(result.get("trace_id", "")),
         }
-        post_history.append(entry)
-        if len(post_history) > MAX_HISTORY:
-            post_history.pop(0)
+        add_post(entry)
 
         class _Eval:
             hallucination_score = scores["hallucination_score"]
@@ -114,7 +110,7 @@ async def generate_post(payload: PostRequest) -> PostResponse:
 @router.get("/history")
 async def get_post_history() -> list[dict]:
     """Return the last 20 generated posts."""
-    return post_history[-20:]
+    return list_posts(limit=20)
 
 
 @router.get("/status")
@@ -128,7 +124,7 @@ async def reset_post_agent() -> dict:
     """Reset post agent to weak prompt."""
     try:
         post_agent.reset()
-        post_history.clear()
+        clear_posts()
         await websocket_manager.broadcast("post_reset:v1")
         return {"status": "reset", "prompt_version": 1}
     except Exception as exc:

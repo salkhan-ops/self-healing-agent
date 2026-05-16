@@ -26,7 +26,7 @@ class PostScreen extends StatefulWidget {
 
 class _PostScreenState extends State<PostScreen> {
   final briefController = TextEditingController();
-  final platforms = const ['linkedin', 'twitter', 'facebook'];
+  final platforms = const ['twitter', 'linkedin', 'facebook'];
   final normalBriefs = const [
     'Q1 was a strong quarter. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
     'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
@@ -42,7 +42,7 @@ class _PostScreenState extends State<PostScreen> {
     'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
     'New office opened in Dubai. 12 people relocated.',
   ];
-  String platform = 'linkedin';
+  String platform = 'twitter';
   bool isLoading = false;
   int promptVersion = 1;
   Map<String, dynamic>? latestPost;
@@ -238,14 +238,17 @@ class _PostScreenState extends State<PostScreen> {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         const Text(
-          'Social Media Post Safety',
+          'Social Media Posts',
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
         ),
         const SizedBox(width: 8),
         SegmentedButton<String>(
           segments: [
             for (final value in platforms)
-              ButtonSegment(value: value, label: Text(_label(value))),
+              ButtonSegment(
+                value: value,
+                label: Text(_label(value), maxLines: 1, softWrap: false),
+              ),
           ],
           selected: {platform},
           onSelectionChanged: (values) =>
@@ -480,7 +483,7 @@ class _PostScreenState extends State<PostScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Agent Control started to heal Post Safety.'),
+            content: Text('Agent Control started to heal Social Media Posts.'),
           ),
         );
       }
@@ -541,7 +544,7 @@ class _PostScreenState extends State<PostScreen> {
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'Post Safety Before/After',
+                        'Social Media Posts Before/After',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,

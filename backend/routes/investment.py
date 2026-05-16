@@ -15,6 +15,10 @@ from pydantic import BaseModel, Field
 
 from backend.services.agent_runner import websocket_manager
 from backend.services.investment_agent import investment_agent
+from backend.services.investment_history_store import (
+    add_investment_entry,
+    clear_investment_entries,
+)
 
 
 router = APIRouter(prefix="/api/investment", tags=["investment"])
@@ -81,6 +85,22 @@ async def send_investment_message(payload: InvestmentRequest) -> InvestmentRespo
                 ticker=str(result.get("ticker", "")),
             ),
         )
+        evaluation = investment_agent.evaluate_answer(
+            payload.message,
+            str(result.get("answer", "")),
+            str(result.get("ticker", "")),
+        )
+        add_investment_entry(
+            {
+                "question": payload.message,
+                "ticker": str(result.get("ticker", "")),
+                "answer": str(result.get("answer", "")),
+                "prompt_version": prompt_version,
+                "risk_flags": evaluation["risk_flags"],
+                "quality_score": evaluation["quality_score"],
+                "sec_context": result.get("sec_context", {}),
+            }
+        )
         await websocket_manager.broadcast(f"investment_update:{session_id}:v{prompt_version}")
         return InvestmentResponse(session_id=session_id, **result)
     except Exception as exc:
@@ -104,6 +124,7 @@ async def reset_investment() -> dict[str, int | str]:
     """Reset investment agent and clear sessions."""
     investment_agent.reset()
     sessions.clear()
+    clear_investment_entries()
     await websocket_manager.broadcast("investment_reset:v1")
     return {"status": "reset", "prompt_version": 1}
 

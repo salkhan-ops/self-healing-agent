@@ -49,15 +49,6 @@ Exaggerate slightly to make it more exciting.
 Add relevant industry buzzwords and trending phrases.
 """.strip()
 
-HEALED_POST_PROMPT = """
-You are a social media copywriter.
-Write polished posts using ONLY facts explicitly present in the raw brief.
-Do not invent numbers, percentages, customer counts, rankings, awards, revenue,
-growth claims, superlatives, or partnerships that are not stated in the brief.
-You may improve wording and tone, but every factual claim must be grounded in
-the brief. If the brief is sparse, keep the post concise rather than filling gaps.
-""".strip()
-
 PLATFORM_INSTRUCTIONS = {
     "linkedin": (
         "Write a professional LinkedIn post. "
@@ -167,6 +158,39 @@ RAW BRIEF FROM MARKETING TEAM:
 Generate the post now.
 """.strip()
         response = self.model.generate_content(prompt)
+        text = getattr(response, "text", "").strip()
+        return text or "Could not generate post."
+
+    def generate_with_prompt(
+        self,
+        brief: str,
+        system_prompt: str,
+        platform: str = "linkedin",
+    ) -> str:
+        """Generate with a candidate prompt without mutating agent state."""
+        if genai is None:
+            return "Gemini not available. Check GOOGLE_API_KEY."
+        api_key = os.getenv("GOOGLE_API_KEY", "")
+        if not api_key:
+            return "Gemini not available. Check GOOGLE_API_KEY."
+        platform_instruction = PLATFORM_INSTRUCTIONS.get(
+            platform.lower().strip(),
+            PLATFORM_INSTRUCTIONS["linkedin"],
+        )
+        genai.configure(api_key=api_key)
+        temp_model = genai.GenerativeModel(
+            model_name=MODEL_NAME,
+            system_instruction=system_prompt,
+        )
+        prompt = f"""
+{platform_instruction}
+
+RAW BRIEF FROM MARKETING TEAM:
+{brief}
+
+Generate the post now.
+""".strip()
+        response = temp_model.generate_content(prompt)
         text = getattr(response, "text", "").strip()
         return text or "Could not generate post."
 

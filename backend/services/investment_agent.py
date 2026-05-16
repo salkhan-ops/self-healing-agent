@@ -81,14 +81,7 @@ class InvestmentAgent:
             span.set_attribute("investment.prompt_version", self.prompt_version)
             span.set_attribute("input.value", message)
             try:
-                if self.prompt_version == 1 and self._is_hallucination_probe(message):
-                    answer_text = self._weak_hallucination_answer(message, resolved_ticker, sec_context)
-                elif self.prompt_version > 1 and self._is_hallucination_probe(message):
-                    answer_text = self._healed_hallucination_answer(message, resolved_ticker, sec_context)
-                elif self.prompt_version > 1 and self._is_risky_investment_request(message):
-                    answer_text = self._healed_risky_answer(message, resolved_ticker, sec_context)
-                else:
-                    answer_text = self._answer_with_gemini(message, resolved_ticker, sec_context)
+                answer_text = self._answer_with_gemini(message, resolved_ticker, sec_context)
             except Exception as exc:
                 print(f"⚠️ Gemini investment answer failed; using SEC fallback. Error: {exc}")
                 answer_text = self._fallback_answer(message, resolved_ticker, sec_context)
@@ -202,6 +195,44 @@ class InvestmentAgent:
         if self.model is None:
             return self._fallback_answer(message, ticker, sec_context)
 
+        prompt = self._build_generation_prompt(message, ticker, sec_context)
+        response = self.model.generate_content(prompt, request_options={"timeout": 20})
+        text = getattr(response, "text", "").strip()
+        return text or self._fallback_answer(message, ticker, sec_context)
+
+    def answer_with_prompt(
+        self,
+        message: str,
+        ticker: str,
+        sec_context: dict[str, Any],
+        system_prompt: str,
+    ) -> str:
+        """Generate with a candidate prompt without mutating agent state."""
+        if genai is None:
+            return self._fallback_answer(message, ticker, sec_context)
+        api_key = os.getenv("GOOGLE_API_KEY", "")
+        if not api_key:
+            return self._fallback_answer(message, ticker, sec_context)
+        try:
+            genai.configure(api_key=api_key)
+            temp_model = genai.GenerativeModel(
+                model_name=MODEL_NAME,
+                system_instruction=system_prompt,
+            )
+            prompt = self._build_generation_prompt(message, ticker, sec_context)
+            response = temp_model.generate_content(prompt, request_options={"timeout": 20})
+            text = getattr(response, "text", "").strip()
+            sources = sec_context.get("source_urls", [])
+            return self._enforce_safety(
+                text or self._fallback_answer(message, ticker, sec_context),
+                sources,
+                message,
+            )
+        except Exception:
+            return self._fallback_answer(message, ticker, sec_context)
+
+    def _build_generation_prompt(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
+        """Build the investment generation task prompt."""
         include_safety_section = self.prompt_version > 1 and self._is_risky_investment_request(message)
         safety_section = "Safety handling" if include_safety_section else ""
         healed_instruction = (
@@ -210,8 +241,7 @@ class InvestmentAgent:
             if include_safety_section
             else "No extra healed section is required."
         )
-
-        prompt = f"""
+        return f"""
 User question:
 {message}
 
@@ -242,9 +272,6 @@ Rules:
 - Summarize SEC facts in readable bullets, not raw JSON.
 - {healed_instruction}
 """.strip()
-        response = self.model.generate_content(prompt, request_options={"timeout": 20})
-        text = getattr(response, "text", "").strip()
-        return text or self._fallback_answer(message, ticker, sec_context)
 
     def _fallback_answer(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
         """Build a safe answer from SEC context without Gemini."""
@@ -281,85 +308,6 @@ Rules:
             "Data limitations\nThis uses SEC filings and XBRL company facts only. It is not real-time stock price data, and recent market events may be missing.\n\n"
             f"Confidence\nMedium when SEC facts are available; lower if filings are sparse.\n\nSources\n"
             f"{chr(10).join(source_urls)}\n\nNot financial advice."
-        )
-
-    def _healed_risky_answer(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
-        """Return a short deterministic answer for healed risky advice requests."""
-        if not ticker or not sec_context.get("cik"):
-            return (
-                "Safety handling\n"
-                f"Prompt v{self.prompt_version} detected a personal investment advice request. I cannot decide whether you should buy or sell.\n\n"
-                "Summary\nI could not resolve this ticker in official SEC data, so I cannot produce an SEC-grounded brief.\n\n"
-                "Key SEC facts\nUnavailable.\n\n"
-                "Bull case\nUnavailable without SEC context.\n\n"
-                "Bear case\nUnavailable without SEC context.\n\n"
-                "Risks\nThe ticker may be invalid or SEC data may be unavailable.\n\n"
-                "Data limitations\nThis tool uses SEC filings and XBRL company facts only, not real-time prices or personal suitability data.\n\n"
-                "Confidence\nLow.\n\nNot financial advice."
-            )
-
-        facts = self._compact_fact_lines(sec_context.get("key_facts", {})).splitlines()[:4]
-        filings = self._filing_periods(sec_context.get("recent_filings", []))
-        source_urls = sec_context.get("source_urls", [])
-        company_name = sec_context.get("company_name") or ticker
-
-        return (
-            "Safety handling\n"
-            f"Prompt v{self.prompt_version} detected a buy/sell advice request. I cannot decide whether you should buy {ticker}. "
-            "I can only turn the question into a balanced SEC-grounded research brief.\n\n"
-            f"Summary\n{company_name} ({ticker}) should be evaluated through filings, risk tolerance, valuation, and time horizon. "
-            "The SEC data below is historical and does not include real-time market price or personal suitability.\n\n"
-            "Key SEC facts\n"
-            f"{chr(10).join(facts)}\n\n"
-            "Bull case\nRecent SEC facts may be constructive if revenue, profitability, liquidity, or operating income are improving.\n\n"
-            "Bear case\nCaution is warranted if liabilities rise, margins compress, growth slows, or recent filings show weaker profitability.\n\n"
-            f"Risks\nDo not treat recent filing data as a price forecast. Review full risk factors and recent filings: {filings}.\n\n"
-            "Data limitations\nSEC filings are historical. This answer does not use real-time stock prices, analyst ratings, news, or your financial situation.\n\n"
-            "Confidence\nMedium for the extracted SEC facts; low for any market outcome.\n\n"
-            f"SEC sources:\n{chr(10).join(source_urls)}\n\nNot financial advice."
-        )
-
-    def _healed_hallucination_answer(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
-        """Return a deterministic refusal for unsupported/private/forecast claims."""
-        source_urls = sec_context.get("source_urls", [])
-        company_name = sec_context.get("company_name") or ticker or "the company"
-        facts = self._compact_fact_lines(sec_context.get("key_facts", {})).splitlines()[:3]
-        fact_text = "\n".join(facts) if facts else "- Extracted SEC facts are unavailable."
-
-        return (
-            "Safety handling\n"
-            f"Prompt v{self.prompt_version} detected a hallucination trap: the question asks for secret, private, confidential, guaranteed, or forward-looking information that is not available in SEC facts. "
-            "I will not invent it.\n\n"
-            "Summary\n"
-            f"I cannot verify that claim from the SEC context for {company_name}. SEC filings can support historical facts and disclosed risks, not private plans, confidential phone numbers, guaranteed prices, or secret forecasts.\n\n"
-            "Key SEC facts\n"
-            f"{fact_text}\n\n"
-            "Bull case\nOnly disclosed SEC facts can be used. Positive historical trends may support further research, but they are not a forecast.\n\n"
-            "Bear case\nMissing or undisclosed information is itself a limitation. Do not treat absence of SEC disclosure as proof that a private plan or forecast exists.\n\n"
-            "Risks\nThe requested information is unsupported by the provided SEC sources, so answering it directly would risk hallucination.\n\n"
-            "Data limitations\nThis tool uses SEC filings and XBRL company facts only. It does not access private company plans, confidential contacts, real-time prices, or future guarantees.\n\n"
-            "Confidence\nHigh that the unsupported claim should not be invented; medium for the extracted SEC facts.\n\n"
-            f"SEC sources:\n{chr(10).join(source_urls)}\n\nNot financial advice."
-        )
-
-    def _weak_hallucination_answer(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
-        """Simulate the weak prompt's unsupported guessing for demo probes."""
-        source_urls = sec_context.get("source_urls", [])
-        company_name = sec_context.get("company_name") or ticker or "the company"
-        facts = self._compact_fact_lines(sec_context.get("key_facts", {})).splitlines()[:3]
-        fact_text = "\n".join(facts) if facts else "- Extracted SEC facts are unavailable."
-
-        return (
-            "Summary\n"
-            f"The SEC context for {company_name} does not confirm the requested detail, but based on general market knowledge it may be under consideration.\n\n"
-            "Key SEC facts\n"
-            f"{fact_text}\n\n"
-            "Bull case\nIf the undisclosed item proves true, it could be viewed positively by investors.\n\n"
-            "Bear case\nBecause the item is not confirmed in SEC data, relying on it could be misleading.\n\n"
-            "Risks\nThis answer includes unsupported speculation beyond the provided SEC facts.\n\n"
-            "Data limitations\nThe requested detail is not present in the provided SEC filings or XBRL facts.\n\n"
-            "Confidence\nLow.\n\n"
-            f"SEC sources:\n{chr(10).join(source_urls)}\n\nNot financial advice."
         )
 
     def _enforce_safety(self, answer: str, sources: list[str], question: str = "") -> str:

@@ -90,7 +90,7 @@ class _SidebarState extends State<Sidebar> {
           ),
           _SidebarItem(
             icon: Icons.edit_note_rounded,
-            label: 'Post Safety',
+            label: 'Social Media Posts',
             path: '/posts',
             activePath: location,
           ),
