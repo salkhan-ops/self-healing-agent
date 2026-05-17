@@ -1,348 +1,411 @@
-# Self-Healing AI Agent
+# 🔧 Self-Healing AI Agent
 
-This project is a working self-healing AI system with three demo agents:
+> **"They wake up in the morning, see this in Slack, and their AI already fixed itself overnight."**
 
-- a customer-support assistant grounded in a local FAQ,
-- a social-media post generator that learns to stop inventing metrics, and
-- an SEC-grounded investment research assistant.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloud%20Run-4285F4?style=for-the-badge&logo=google-cloud)](https://self-healing-agent-274002881656.us-central1.run.app/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
+[![Built for](https://img.shields.io/badge/Built%20for-Google%20Cloud%20Rapid%20Agent%20Hackathon-orange?style=for-the-badge)](https://rapid-agent.devpost.com/)
+[![Powered by](https://img.shields.io/badge/Powered%20by-Gemini%202.5%20Flash-blue?style=for-the-badge)](https://ai.google.dev/)
 
-Each agent records traces to a local Arize Phoenix server. The core healing
-loop reads recent traces through the official Phoenix MCP server, evaluates
-quality, diagnoses failures, rewrites prompts, verifies the change, and saves a
-plain-English incident report. A FastAPI backend and Flutter dashboard expose
-live runs, metrics, reports, schedules, chat flows, post generation, and
-investment analysis.
+---
 
-Built for: **Google Cloud Rapid Agent Hackathon**
+## 🌐 Live Demo
 
-## Why This Matters
+**[https://self-healing-agent-274002881656.us-central1.run.app/](https://self-healing-agent-274002881656.us-central1.run.app/)**
 
-Support agents often fail quietly. They may guess when a policy is missing,
-answer the wrong question, or slowly drift away from the source of truth.
-Most teams only notice after a customer complains.
+No setup required. Open in any browser. All three use cases are live.
 
-This project demonstrates a practical self-healing loop:
+---
 
-- Observe every answer.
-- Score answer quality.
-- Detect repeated failure patterns.
-- Improve the prompt automatically.
-- Verify the fix before declaring success.
-- Produce a report a human can review.
+## 🎯 The Problem
 
-## Architecture
+AI agents fail silently in production.
 
-```text
-┌────────────────────┐
-│  data/faq.txt       │
-│  Local FAQ          │
-└─────────┬──────────┘
-          │
-          ▼
-┌────────────────────┐        traces        ┌────────────────────┐
-│  Agents             │ ───────────────────▶ │  Phoenix Local      │
-│  support/posts/SEC  │                      │  localhost:6006     │
-└─────────┬──────────┘                      └─────────┬──────────┘
-          │                                           │
-          ▼                                           ▼
-┌────────────────────┐                      ┌────────────────────┐
-│  Evaluator          │ ◀─────────────────── │  TraceReader        │
-│  scores answers     │                      │  Phoenix MCP client  │
-└─────────┬──────────┘                      └────────────────────┘
-          │
-          ▼
-┌────────────────────┐
-│  RootCauseAnalyzer  │
-│  finds why          │
-└─────────┬──────────┘
-          │
-          ▼
-┌────────────────────┐
-│  PromptImprover     │
-│  rewrites prompt    │
-└─────────┬──────────┘
-          │
-          ▼
-┌────────────────────┐
-│  Verifier           │
-│  reruns questions   │
-└─────────┬──────────┘
-          │
-          ▼
-┌────────────────────┐
-│  Reporter           │
-│  saves report       │
-└────────────────────┘
+A customer support bot starts making up refund policies. A LinkedIn post generator invents revenue figures that never existed. An investment analyst cites a P/E ratio it fabricated. Nobody notices until a customer complains, a post goes viral for the wrong reason, or a regulator asks questions.
+
+Most teams only find out when the damage is done.
+
+---
+
+## 💡 The Solution
+
+**Self-Healing Agent** monitors your AI in production, detects failures automatically, rewrites the broken prompt, verifies the fix works, and sends you a report — all without human intervention.
+
+```
+AI makes mistake → Phoenix records it → Agent reads its own traces
+→ Detects hallucination → Rewrites its own prompt
+→ Verifies improvement → Sends Slack report
+→ You wake up. It already fixed itself.
 ```
 
-## Prerequisites
+---
 
+## ✨ What Makes It Different
+
+| Traditional Monitoring | Self-Healing Agent |
+|---|---|
+| Alerts you when something breaks | Fixes it before you wake up |
+| Human reviews traces manually | Agent reads its own traces via MCP |
+| Prompt updates require a deploy | Prompt updates happen at runtime |
+| One dashboard per tool | One loop works for any AI agent |
+| You need an engineer on call | Report says "Human Needed: NO ✅" |
+
+---
+
+## 🚀 Three Live Use Cases
+
+### 💬 Customer Support
+An FAQ-grounded support agent that catches itself hallucinating and stops.
+
+**Before healing (Prompt v1):**
+> "I believe we may ship to Pakistan for free on qualifying orders."
+> *(Invented — not in the FAQ)*
+
+**After healing (Prompt v2):**
+> "We currently ship only within the United States."
+> *(Grounded — directly from FAQ)*
+
+---
+
+### 📱 Social Media Post Safety
+A post generator that learns to stop inventing metrics before they go live.
+
+**Before healing (Prompt v1):**
+> "We crushed Q1 with 340% revenue growth! 🚀 Our revolutionary platform is disrupting the industry."
+> *(340% invented — not in the brief)*
+
+**After healing (Prompt v2):**
+> "Q1 was a strong quarter. We launched our new product and welcomed three new engineers."
+> *(Every word from the brief)*
+
+---
+
+### 📈 Investment Research
+An SEC-grounded analyst that refuses to cite financial figures it cannot verify.
+
+Before healing it invents P/E ratios. After healing it says:
+> "I cannot confirm that figure without a verified SEC source."
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Flutter Web Dashboard                        │
+│  Dashboard │ Charts │ Reports │ Scheduler │ Agent Control        │
+│  Customer Support │ Social Media Posts │ Investment Analyst      │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ REST + WebSocket
+┌──────────────────────────▼──────────────────────────────────────┐
+│                      FastAPI Backend                             │
+│  /api/agent  /api/chat  /api/posts  /api/investment             │
+│  /api/metrics  /api/reports  /api/schedules  /ws                │
+└───────────┬────────────────────────────┬────────────────────────┘
+            │                            │
+┌───────────▼──────────┐    ┌────────────▼──────────────────────┐
+│   Self-Healing Loop   │    │         Child Agents               │
+│                       │    │                                    │
+│  TaskAgent            │    │  ChatAgent (Customer Support)      │
+│      ↓                │    │  PostAgent (Social Media)          │
+│  TraceReader ←── MCP ─┼────┼──→ Arize Phoenix                  │
+│      ↓                │    │  InvestmentAgent (SEC Research)    │
+│  Evaluator            │    │                                    │
+│      ↓                │    └────────────────────────────────────┘
+│  RootCauseAnalyzer    │
+│      ↓                │    ┌────────────────────────────────────┐
+│  PromptImprover ──────┼───▶│  Gemini 2.5 Flash                  │
+│      ↓                │    │  (answer / judge / rewrite)        │
+│  Verifier             │    └────────────────────────────────────┘
+│      ↓                │
+│  Reporter ────────────┼───▶  Slack + SQLite + reports/
+└───────────────────────┘
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full interactive Mermaid diagram.
+
+---
+
+## 🔗 Partner Integration — Arize Phoenix + MCP
+
+This project uses the **official Arize Phoenix MCP server** as its observability superpower.
+
+Every agent interaction is traced to Phoenix via OpenTelemetry. The self-healing loop then reads its own traces back at runtime using the Phoenix MCP server — giving the agent the ability to inspect its own behavior and improve without human review.
+
+```python
+# The agent reads its own traces via Phoenix MCP
+result = subprocess.run([
+    "npx", "@arizeai/phoenix-mcp@latest",
+    "--baseUrl", PHOENIX_HOST
+], ...)
+```
+
+This is the core of the Arize track requirement: **an agent that uses Phoenix MCP to query its own traces and self-improve at runtime.**
+
+---
+
+## 🧠 The Self-Healing Loop (7 Steps)
+
+```
+Step 1  ANSWER    Agent answers 10 questions → traces sent to Phoenix
+Step 2  FETCH     Agent reads own traces via Phoenix MCP server
+Step 3  EVALUATE  Gemini scores each answer: hallucination + relevance
+Step 4  DIAGNOSE  Root cause identified: GUESSING / HALLUCINATION / IRRELEVANT
+Step 5  REWRITE   Gemini rewrites the system prompt to fix the root cause
+Step 6  VERIFY    Same questions run again → scores compared before/after
+Step 7  REPORT    Incident report saved + Slack notification sent
+```
+
+All 7 steps happen automatically. No human required.
+
+---
+
+## 📊 Dashboard Features
+
+- **Live health score** (0–100) updated after every agent interaction
+- **Real-time charts** — hallucination, relevance, latency over hour/day/week/month/year
+- **Incident reports** — before/after comparison with root cause and fix description
+- **Scheduler** — run healing loops on a recurring schedule
+- **Agent Control** — trigger runs manually, watch live output stream
+- **Healing Journey Dialog** — animated step-by-step visualization of the healing process
+- **FAQ Editor** — edit the knowledge base from the dashboard
+- **Embeddable Widget** — paste one `<iframe>` tag into any app
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Flutter Web, Dart, Provider, go_router, fl_chart |
+| Backend API | Python, FastAPI, Uvicorn, WebSockets |
+| Agent / AI | Gemini 2.5 Flash via google-generativeai |
+| Observability | Arize Phoenix, OpenTelemetry, Phoenix MCP server |
+| External Data | SEC EDGAR APIs (for investment use case) |
+| Persistence | SQLite, SQLAlchemy async |
+| Scheduling | APScheduler |
+| Deployment | Google Cloud Run, Docker |
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
 - Python 3.12
-- Node.js/npm available on `PATH` so `npx` can launch `@arizeai/phoenix-mcp`
-- Flutter if you want to run the dashboard UI
+- Node.js / npm (for Phoenix MCP)
+- Flutter (for dashboard UI)
+- Google API key from [aistudio.google.com](https://aistudio.google.com)
 
-## Setup
-
-1. Create and activate a Python 3.12 virtual environment:
+### 1. Clone and install
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/self-healing-agent.git
+cd self-healing-agent
 python3.12 -m venv venv
 source venv/bin/activate
-```
-
-2. Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-3. Create your `.env` file:
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-4. Fill in `.env`:
+Edit `.env`:
 
-```text
+```env
+GOOGLE_API_KEY=your_google_api_key_here
 PHOENIX_API_KEY=your_local_phoenix_key
 PHOENIX_HOST=http://localhost:6006
 PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
-
-GOOGLE_API_KEY=your_google_api_key
-AGENT_MODE=cheap
-GEMINI_MODEL_NAME=gemini-2.5-flash-lite
-
-SLACK_WEBHOOK_URL=
-
 HALLUCINATION_THRESHOLD=0.4
 RELEVANCE_THRESHOLD=0.6
 LATENCY_THRESHOLD_MS=3000
-
-SEC_USER_AGENT=SelfHealingAgent/1.0 your_email@example.com
 ```
 
-Secrets must stay in environment variables. Do not hardcode API keys.
-
-`AGENT_MODE` options:
-
-- `cheap`: Gemini answers + local self-evaluation/improvement
-- `full`: Gemini answers + Gemini self-evaluation/improvement
-- `local`: no Gemini calls
-
-## Run Phoenix Locally
-
-Phoenix defaults to local development at `http://localhost:6006`, but both the
-host and collector endpoint are environment-driven so Cloud Run can point at a
-self-hosted Phoenix service. The app exports traces over OpenTelemetry and reads
-them back through Phoenix MCP during the healing loop.
-
-Start Phoenix:
+### 3. Start Phoenix
 
 ```bash
 python -m phoenix.server.main serve
 ```
 
-Open the dashboard:
+Open [http://localhost:6006](http://localhost:6006) → Settings → API Keys → Create → paste key into `.env`
 
-```text
-http://localhost:6006
-```
-
-Create a local API key:
-
-```text
-Settings → API Keys → Create
-```
-
-Put that key in `.env` as `PHOENIX_API_KEY`.
-
-## Run The Agent
-
-From the project root:
+### 4. Run the agent (standalone)
 
 ```bash
 python agent/main.py
 ```
 
-The agent will:
+Watch the 7-step healing loop run in your terminal.
 
-1. Load `data/faq.txt`.
-2. Answer 10 FAQ questions.
-3. Send traces to local Phoenix when available.
-4. Read recent traces through the official Phoenix MCP server.
-5. Evaluate hallucination, relevance, and latency.
-6. Analyze the root cause.
-7. Rewrite its system prompt.
-8. Verify the new prompt on the same questions.
-9. Save a report in `reports/`.
-
-If Phoenix is offline, the agent continues with local in-memory traces so local
-development still works.
-
-## Run The Dashboard
-
-The dashboard stack has three moving parts:
-
-```text
-Phoenix      http://localhost:6006
-FastAPI API  http://localhost:8000
-Flutter UI   http://localhost:3000
-```
-
-Start the backend:
+### 5. Run the full dashboard
 
 ```bash
+# Terminal 1 — Phoenix
 source venv/bin/activate
-pip install -r backend/requirements_backend.txt
+python -m phoenix.server.main serve
+
+# Terminal 2 — FastAPI backend
+source venv/bin/activate
 uvicorn backend.main:app --reload --port 8000
+
+# Terminal 3 — Flutter dashboard
+cd dashboard
+flutter pub get
+flutter run -d chrome --web-port 3000 \
+  --dart-define=API_BASE_URL=http://localhost:8000 \
+  --dart-define=WS_URL=ws://localhost:8000/ws
 ```
 
-Start the Flutter dashboard in another terminal:
+Open [http://localhost:3000](http://localhost:3000)
+
+---
+
+## 🐳 Docker
+
+```bash
+docker build -f deploy/Dockerfile -t self-healing-agent .
+docker run --env-file .env self-healing-agent
+```
+
+---
+
+## ☁️ Deploy to Google Cloud Run
+
+```bash
+gcloud run deploy self-healing-agent \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars GOOGLE_API_KEY=your_key \
+  --set-env-vars HALLUCINATION_THRESHOLD=0.4 \
+  --set-env-vars RELEVANCE_THRESHOLD=0.6 \
+  --set-env-vars LATENCY_THRESHOLD_MS=3000
+```
+
+Build Flutter for production first:
 
 ```bash
 cd dashboard
-flutter pub get
-./run.sh
+flutter build web --release \
+  --dart-define=API_BASE_URL=https://your-cloud-run-url \
+  --dart-define=WS_URL=wss://your-cloud-run-url/ws
 ```
 
-The UI includes:
+---
 
-- Dashboard, charts, reports, scheduler, and agent controls
-- Customer-support chat with before/after healing views
-- Social-media post generation
-- SEC-grounded investment analysis
-- Phoenix connection status and live WebSocket progress
+## 🧩 Embed in Any App
 
-See `README_DASHBOARD.md` for endpoint details and the embeddable widget.
+Drop this into any HTML page or admin console:
 
-## Sample Output
-
-```text
-🚀 Self-Healing Agent Starting...
-📚 Loading FAQ knowledge base... (20 Q&As loaded)
-🔌 Connecting to Phoenix at http://localhost:6006... ✅
-
-─────────────────────────────────────
-ROUND 1 — Answering 10 Questions
-─────────────────────────────────────
-Q1: What is your return policy? → Answered ✅
-Q2: How do I start a return? → Answered ✅
-...
-All traces sent to Phoenix ✅
-
-─────────────────────────────────────
-SELF-EVALUATION (Reading own traces)
-─────────────────────────────────────
-📊 Fetching traces from Phoenix...
-Traces retrieved: 10
-Hallucination Score: 0.42 ⚠️  (threshold: 0.40)
-Relevance Score:    0.55 ⚠️  (threshold: 0.60)
-Avg Latency:        1.2s  ✅
-
-─────────────────────────────────────
-ROOT CAUSE ANALYSIS
-─────────────────────────────────────
-🔍 Analyzing 3 problematic traces...
-Root Cause: Agent is guessing when information is not in the FAQ.
-
-─────────────────────────────────────
-SELF-IMPROVEMENT
-─────────────────────────────────────
-✏️  Rewriting system prompt...
-Old prompt saved ✅
-New prompt applied ✅
-
-─────────────────────────────────────
-ROUND 2 — Verifying Improvement
-─────────────────────────────────────
-Q1: What is your return policy? → Answered ✅
-...
-
-─────────────────────────────────────
-RESULTS
-─────────────────────────────────────
-Hallucination: 0.42 → 0.08  ✅ (+81%)
-Relevance:     0.55 → 0.79  ✅ (+44%)
-Latency:       1.2s → 1.1s  ✅
-
-─────────────────────────────────────
-📄 INCIDENT REPORT GENERATED
-─────────────────────────────────────
-🔧 SELF-HEALING REPORT — 2026-05-10 20:30:00
-Problem: Hallucination rate above threshold (0.42)
-Root Cause: GUESSING — Prompt allowed guessing
-Fix Applied: Added strict grounding instruction and required fallback answer
-Human Action Needed: NO ✅
-Report saved to: reports/report_20260510_203000.txt
+```html
+<iframe
+  src="https://self-healing-agent-274002881656.us-central1.run.app/embed/widget"
+  width="360"
+  height="240"
+  style="border:0;border-radius:12px;overflow:hidden"
+  title="Self-Healing Agent Health">
+</iframe>
 ```
 
-## Run Tests
+Shows live health score and latest incident report. Updates automatically.
+
+---
+
+## 🧪 Tests
 
 ```bash
 pytest
 ```
 
-The tests are designed to pass locally even before Phoenix or Gemini keys are
-configured. In that case, components use graceful local fallbacks.
+All tests pass without Phoenix or Gemini keys configured — components fall back gracefully to local rules.
 
-## Docker
+---
 
-Build:
+## 📁 Project Structure
 
-```bash
-docker build -f deploy/Dockerfile -t self-healing-agent .
 ```
-
-Run:
-
-```bash
-docker run --env-file .env self-healing-agent
-```
-
-For Phoenix tracing from inside Docker or Cloud Run, set `PHOENIX_HOST` and
-`PHOENIX_COLLECTOR_ENDPOINT` to a reachable Phoenix service and make sure
-Node/npm are available if the container also needs to execute the MCP trace-read
-path.
-
-## Project Structure
-
-```text
 self-healing-agent/
-├── agent/
-│   ├── main.py
-│   ├── task_agent.py
-│   ├── trace_reader.py
-│   ├── evaluator.py
-│   ├── analyzer.py
-│   ├── improver.py
-│   ├── verifier.py
-│   └── reporter.py
-├── backend/
-│   ├── main.py
-│   ├── routes/
-│   └── services/
-├── config/
-│   └── settings.py
-├── dashboard/
+├── agent/                  ← Core self-healing loop
+│   ├── main.py             ← Entry point
+│   ├── task_agent.py       ← Gemini agent with Phoenix tracing
+│   ├── trace_reader.py     ← Phoenix MCP client
+│   ├── evaluator.py        ← LLM-as-judge scoring
+│   ├── analyzer.py         ← Root cause classification
+│   ├── improver.py         ← Prompt rewriting
+│   ├── verifier.py         ← Before/after verification
+│   └── reporter.py         ← Incident report generation
+├── backend/                ← FastAPI backend
+│   ├── main.py             ← App + routes + WebSocket
+│   ├── routes/             ← REST endpoints
+│   └── services/           ← Agent singletons + DB
+├── dashboard/              ← Flutter web UI
 │   └── lib/
+│       ├── screens/        ← 7 screens
+│       ├── widgets/        ← Healing journey dialog + components
+│       └── providers/      ← State management
+├── config/                 ← Settings + Phoenix config
 ├── data/
-│   └── faq.txt
-├── tests/
-│   ├── test_loop.py
-│   ├── test_investment_agent.py
-│   └── test_sec_client.py
-├── deploy/
-│   └── Dockerfile
+│   ├── faq.txt             ← Support knowledge base
+│   └── sec_cache/          ← SEC EDGAR local cache
+├── deploy/                 ← Dockerfile + Cloud Run scripts
+├── tests/                  ← Pytest suite
+├── ARCHITECTURE.md         ← Full system diagram
+├── LICENSE                 ← Apache 2.0
 └── README.md
 ```
 
-## Notes
+---
 
-- Local Phoenix defaults to `http://localhost:6006`; cloud deployments should
-  use a reachable self-hosted Phoenix URL instead.
-- The core FAQ loop uses `GEMINI_MODEL_NAME` from `.env` (default:
-  `gemini-2.5-flash-lite`).
-- The dashboard post and investment agents currently use `gemini-2.5-flash`.
-- Reports are saved locally in `reports/`.
-- Slack reporting is optional and only runs when `SLACK_WEBHOOK_URL` is set.
+## 📄 Sample Healing Report
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-05-17 03:47:00
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Customer Support Agent
+Problem: Hallucination rate above threshold (0.72)
+Root Cause: GUESSING — Agent filling knowledge gaps
+            with invented details not in the FAQ
+Fix Applied: Added strict grounding instruction.
+             Required fallback for unsupported questions.
+
+BEFORE:
+  Hallucination: 0.72
+  Relevance:     0.31
+  Latency:       2046ms
+
+AFTER:
+  Hallucination: 0.04  (-94%)  ✅
+  Relevance:     0.87  (+181%) ✅
+  Latency:       1.9s          ✅
+
+Improvement: +89%
+Human Action Needed: NO ✅
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## 🏆 Built For
+
+**Google Cloud Rapid Agent Hackathon** — Arize Track
+
+- ✅ Powered by Gemini 2.5 Flash
+- ✅ Deployed on Google Cloud Run
+- ✅ Arize Phoenix MCP integration
+- ✅ Multi-step autonomous agent loop
+- ✅ Moves beyond chat — plans, acts, verifies, reports
+- ✅ Three real-world use cases
+
+---
+
+## 📜 License
+
+Apache 2.0 — see [LICENSE](LICENSE)
+
+---
+
+*Built by Salman Khan · May 2026*
