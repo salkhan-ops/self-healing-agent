@@ -118,26 +118,33 @@ class _ResponsiveShellState extends State<_ResponsiveShell> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 768;
+        // Treat narrow desktop windows and tablets like compact layouts too.
+        // 768px was technically "mobile", but it left cramped screens with a
+        // permanent sidebar and made the app feel non-responsive in practice.
+        final isMobile = constraints.maxWidth < 1024;
 
         return Scaffold(
           key: _scaffoldKey,
           drawer: isMobile ? const Drawer(child: Sidebar()) : null,
           body: isMobile
-              ? Stack(
+              ? Column(
                   children: [
-                    widget.child,
                     SafeArea(
+                      bottom: false,
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 12, top: 8),
-                        child: IconButton(
-                          onPressed: () =>
-                              _scaffoldKey.currentState?.openDrawer(),
-                          icon: const Icon(Icons.menu_rounded),
-                          tooltip: 'Open menu',
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            onPressed: () =>
+                                _scaffoldKey.currentState?.openDrawer(),
+                            icon: const Icon(Icons.menu_rounded),
+                            tooltip: 'Open menu',
+                          ),
                         ),
                       ),
                     ),
+                    Expanded(child: widget.child),
                   ],
                 )
               : Row(

@@ -41,6 +41,7 @@ class InvestmentScreen extends StatefulWidget {
 
 class _InvestmentScreenState extends State<InvestmentScreen>
     with SingleTickerProviderStateMixin {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   static final List<Map<String, dynamic>> _savedMessages = [];
   static String _savedSessionId = '';
   static String _savedSelectedTicker = 'AAPL';
@@ -559,94 +560,117 @@ class _InvestmentScreenState extends State<InvestmentScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: healingJourneyPair == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _showHealingJourney,
-              backgroundColor: primary,
-              icon: const Icon(Icons.auto_fix_high_rounded),
-              label: const Text('View Healing'),
-            ),
-      body: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: [
-                _Header(promptVersion: promptVersion, badgeScale: promptPulse),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  child: showHealingBanner
-                      ? _HealingBanner(text: healingBannerText)
-                      : const SizedBox.shrink(),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                    itemCount: messages.length + (isLoading ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == messages.length) {
-                        return const _TypingCard();
-                      }
-                      return _MessageCard(message: messages[index]);
-                    },
-                  ),
-                ),
-                _QuestionChips(
-                  normalQuestions: normalQuestions,
-                  riskyQuestions: riskyQuestions,
-                  hallucinationQuestions: hallucinationQuestions,
-                  initiallyCollapsed: messages.any(
-                    (message) => message['role'] == 'user',
-                  ),
-                  onSelected: sendMessage,
-                ),
-                _InputBar(
-                  controller: inputController,
-                  isLoading: isLoading,
-                  isHealing:
-                      context.watch<AgentProvider>().isRunning &&
-                      pendingHealingBaseline == null,
-                  canSend: _hasLoadedContextForSelectedTicker(),
-                  onReset: resetInvestmentAgent,
-                  onSend: () => sendMessage(inputController.text),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 330,
-            child: _AnalystPanel(
-              tickers: tickers,
-              selectedTicker: selectedTicker,
+    final analystPanel = _AnalystPanel(
+      tickers: tickers,
+      selectedTicker: selectedTicker,
+      promptVersion: promptVersion,
+      secContext: secContext,
+      lastRiskFlags: lastRiskFlags,
+      onTickerChanged: (value) {
+        if (value == null) return;
+        setState(() {
+          selectedTicker = value.trim().toUpperCase();
+          if (selectedTicker.isNotEmpty && !tickers.contains(selectedTicker)) {
+            tickers = [selectedTicker, ...tickers];
+          }
+          _savedSelectedTicker = selectedTicker;
+          _savedTickers = tickers;
+          secContext = _secContextCache[selectedTicker];
+          _savedSecContext = secContext;
+          secContextError = '';
+        });
+      },
+      onLoadSecContext: loadSecContext,
+      isSecLoading: isSecLoading,
+      secContextError: secContextError,
+      onClose: () => Navigator.of(context).maybePop(),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 980;
+
+        final chatPane = Column(
+          children: [
+            _Header(
               promptVersion: promptVersion,
-              secContext: secContext,
-              lastRiskFlags: lastRiskFlags,
-              onTickerChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  selectedTicker = value.trim().toUpperCase();
-                  if (selectedTicker.isNotEmpty &&
-                      !tickers.contains(selectedTicker)) {
-                    tickers = [selectedTicker, ...tickers];
-                  }
-                  _savedSelectedTicker = selectedTicker;
-                  _savedTickers = tickers;
-                  secContext = _secContextCache[selectedTicker];
-                  _savedSecContext = secContext;
-                  secContextError = '';
-                });
-              },
-              onLoadSecContext: loadSecContext,
-              isSecLoading: isSecLoading,
-              secContextError: secContextError,
+              badgeScale: promptPulse,
+              compact: compact,
+              onOpenControls: compact
+                  ? () => _scaffoldKey.currentState?.openEndDrawer()
+                  : null,
             ),
-          ),
-        ],
-      ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              child: showHealingBanner
+                  ? _HealingBanner(text: healingBannerText)
+                  : const SizedBox.shrink(),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                itemCount: messages.length + (isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == messages.length) {
+                    return const _TypingCard();
+                  }
+                  return _MessageCard(message: messages[index]);
+                },
+              ),
+            ),
+            _QuestionChips(
+              normalQuestions: normalQuestions,
+              riskyQuestions: riskyQuestions,
+              hallucinationQuestions: hallucinationQuestions,
+              initiallyCollapsed: messages.any(
+                (message) => message['role'] == 'user',
+              ),
+              onSelected: sendMessage,
+            ),
+            _InputBar(
+              controller: inputController,
+              isLoading: isLoading,
+              isHealing:
+                  context.watch<AgentProvider>().isRunning &&
+                  pendingHealingBaseline == null,
+              canSend: _hasLoadedContextForSelectedTicker(),
+              onReset: resetInvestmentAgent,
+              onSend: () => sendMessage(inputController.text),
+            ),
+          ],
+        );
+
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          endDrawer: compact
+              ? Drawer(
+                  // On compact layouts this is not a side panel anymore; it is
+                  // the controls surface. Full width avoids leaving a cramped
+                  // strip of the chat UI visible beside it on phones.
+                  width: constraints.maxWidth,
+                  child: analystPanel,
+                )
+              : null,
+          floatingActionButton: healingJourneyPair == null
+              ? null
+              : FloatingActionButton.extended(
+                  onPressed: _showHealingJourney,
+                  backgroundColor: primary,
+                  icon: const Icon(Icons.auto_fix_high_rounded),
+                  label: const Text('View Healing'),
+                ),
+          body: compact
+              ? chatPane
+              : Row(
+                  children: [
+                    Expanded(flex: 3, child: chatPane),
+                    SizedBox(width: 330, child: analystPanel),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -844,16 +868,23 @@ class _InvestmentScreenState extends State<InvestmentScreen>
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.promptVersion, required this.badgeScale});
+  const _Header({
+    required this.promptVersion,
+    required this.badgeScale,
+    required this.compact,
+    this.onOpenControls,
+  });
 
   final int promptVersion;
   final Animation<double> badgeScale;
+  final bool compact;
+  final VoidCallback? onOpenControls;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 86,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      height: compact ? 76 : 86,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 24),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(
@@ -862,20 +893,22 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Investment Analyst',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'SEC-grounded research assistant · Not financial advice',
-                  style: TextStyle(color: textMuted),
-                ),
+                if (!compact) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'SEC-grounded research assistant · Not financial advice',
+                    style: TextStyle(color: textMuted),
+                  ),
+                ],
               ],
             ),
           ),
@@ -883,10 +916,19 @@ class _Header extends StatelessWidget {
             scale: badgeScale,
             child: _Badge(text: 'Prompt v$promptVersion', color: primary),
           ),
-          const SizedBox(width: 10),
-          const _Badge(text: 'Self-Healing Active', color: success),
-          const SizedBox(width: 10),
-          const _Badge(text: 'SEC Data', color: accent),
+          if (!compact) ...[
+            const SizedBox(width: 10),
+            const _Badge(text: 'Self-Healing Active', color: success),
+            const SizedBox(width: 10),
+            const _Badge(text: 'SEC Data', color: accent),
+          ] else ...[
+            const SizedBox(width: 6),
+            IconButton(
+              onPressed: onOpenControls,
+              tooltip: 'Open research controls',
+              icon: const Icon(Icons.tune_rounded),
+            ),
+          ],
         ],
       ),
     );
@@ -1966,6 +2008,7 @@ class _AnalystPanel extends StatelessWidget {
     required this.lastRiskFlags,
     required this.onTickerChanged,
     required this.onLoadSecContext,
+    this.onClose,
   });
 
   final List<String> tickers;
@@ -1977,6 +2020,7 @@ class _AnalystPanel extends StatelessWidget {
   final List<String> lastRiskFlags;
   final ValueChanged<String?> onTickerChanged;
   final VoidCallback onLoadSecContext;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -1997,7 +2041,7 @@ class _AnalystPanel extends StatelessWidget {
         : 0;
 
     return Container(
-      width: 330,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
@@ -2005,9 +2049,21 @@ class _AnalystPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(18),
         children: [
-          const Text(
-            'Research Controls',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Research Controls',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (onClose != null)
+                IconButton(
+                  onPressed: onClose,
+                  tooltip: 'Close research controls',
+                  icon: const Icon(Icons.close_rounded),
+                ),
+            ],
           ),
           const SizedBox(height: 18),
           _PanelSection(

@@ -85,9 +85,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double maxWidth,
   ) {
     final cards = _metricCards(summary, points);
-    final cardWidth = maxWidth < 768
-        ? (maxWidth - 48) / 2
-        : (maxWidth - 72) / 4;
+    final cardWidth = maxWidth < 560
+        ? maxWidth
+        : maxWidth < 1024
+        ? (maxWidth - 12) / 2
+        : (maxWidth - 36) / 4;
 
     return Wrap(
       spacing: 12,
