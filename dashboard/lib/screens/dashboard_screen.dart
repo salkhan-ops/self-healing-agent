@@ -44,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final content = compact
             ? ListView(
                 children: [
-                  _metricGrid(summary, points),
+                  _metricWrap(summary, points, constraints.maxWidth),
                   const SizedBox(height: 16),
                   SizedBox(height: 220, child: _LinePanel(points: points)),
                   const SizedBox(height: 16),
@@ -55,7 +55,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
             : Column(
                 children: [
-                  SizedBox(height: 150, child: _metricRow(summary, points)),
+                  SizedBox(
+                    height: 150,
+                    child: _metricWrap(summary, points, constraints.maxWidth),
+                  ),
                   const SizedBox(height: 16),
                   SizedBox(height: 220, child: _LinePanel(points: points)),
                   const SizedBox(height: 16),
@@ -76,26 +79,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _metricGrid(dynamic summary, List<MetricPoint> points) {
-    return Wrap(
-      spacing: 14,
-      runSpacing: 14,
-      children: [
-        for (final card in _metricCards(summary, points))
-          SizedBox(width: 260, height: 150, child: card),
-      ],
-    );
-  }
-
-  Widget _metricRow(dynamic summary, List<MetricPoint> points) {
+  Widget _metricWrap(
+    dynamic summary,
+    List<MetricPoint> points,
+    double maxWidth,
+  ) {
     final cards = _metricCards(summary, points);
-    return Row(
-      children: [
-        for (var i = 0; i < cards.length; i++) ...[
-          if (i > 0) const SizedBox(width: 14),
-          Expanded(child: cards[i]),
-        ],
-      ],
+    final cardWidth = maxWidth < 768
+        ? (maxWidth - 48) / 2
+        : (maxWidth - 72) / 4;
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: cards
+          .map((card) => SizedBox(width: cardWidth, height: 150, child: card))
+          .toList(),
     );
   }
 

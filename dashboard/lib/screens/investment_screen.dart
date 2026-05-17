@@ -560,7 +560,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: healingJourneyPair == null
           ? null
           : FloatingActionButton.extended(
@@ -588,7 +588,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
                     itemCount: messages.length + (isLoading ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == messages.length) return const _TypingCard();
+                      if (index == messages.length) {
+                        return const _TypingCard();
+                      }
                       return _MessageCard(message: messages[index]);
                     },
                   ),
@@ -615,30 +617,33 @@ class _InvestmentScreenState extends State<InvestmentScreen>
               ],
             ),
           ),
-          _AnalystPanel(
-            tickers: tickers,
-            selectedTicker: selectedTicker,
-            promptVersion: promptVersion,
-            secContext: secContext,
-            lastRiskFlags: lastRiskFlags,
-            onTickerChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                selectedTicker = value.trim().toUpperCase();
-                if (selectedTicker.isNotEmpty &&
-                    !tickers.contains(selectedTicker)) {
-                  tickers = [selectedTicker, ...tickers];
-                }
-                _savedSelectedTicker = selectedTicker;
-                _savedTickers = tickers;
-                secContext = _secContextCache[selectedTicker];
-                _savedSecContext = secContext;
-                secContextError = '';
-              });
-            },
-            onLoadSecContext: loadSecContext,
-            isSecLoading: isSecLoading,
-            secContextError: secContextError,
+          SizedBox(
+            width: 330,
+            child: _AnalystPanel(
+              tickers: tickers,
+              selectedTicker: selectedTicker,
+              promptVersion: promptVersion,
+              secContext: secContext,
+              lastRiskFlags: lastRiskFlags,
+              onTickerChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  selectedTicker = value.trim().toUpperCase();
+                  if (selectedTicker.isNotEmpty &&
+                      !tickers.contains(selectedTicker)) {
+                    tickers = [selectedTicker, ...tickers];
+                  }
+                  _savedSelectedTicker = selectedTicker;
+                  _savedTickers = tickers;
+                  secContext = _secContextCache[selectedTicker];
+                  _savedSecContext = secContext;
+                  secContextError = '';
+                });
+              },
+              onLoadSecContext: loadSecContext,
+              isSecLoading: isSecLoading,
+              secContextError: secContextError,
+            ),
           ),
         ],
       ),
@@ -849,9 +854,11 @@ class _Header extends StatelessWidget {
     return Container(
       height: 86,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: surface,
-        border: Border(bottom: BorderSide(color: card)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(color: Theme.of(context).dividerColor),
+        ),
       ),
       child: Row(
         children: [
@@ -968,14 +975,16 @@ class _MessageCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: isUser ? primary : card,
+                color: isUser ? primary : Theme.of(context).cardColor,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
                   bottomLeft: Radius.circular(isUser ? 18 : 4),
                   bottomRight: Radius.circular(isUser ? 4 : 18),
                 ),
-                border: isUser ? null : Border.all(color: surface),
+                border: isUser
+                    ? null
+                    : Border.all(color: Theme.of(context).dividerColor),
               ),
               child: isUser
                   ? SelectableText(
@@ -1082,7 +1091,7 @@ class _FormattedAnswer extends StatelessWidget {
             child: SelectableText(
               line,
               style: TextStyle(
-                color: textMain,
+                color: Theme.of(context).colorScheme.onSurface,
                 height: 1.35,
                 fontSize: _isHeading(line) ? 15 : 14,
                 fontWeight: _isHeading(line)
@@ -1169,7 +1178,7 @@ class _CopyChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: surface,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: textMuted.withValues(alpha: 0.22)),
         ),
@@ -1988,7 +1997,7 @@ class _AnalystPanel extends StatelessWidget {
         : 0;
 
     return Container(
-      width: double.infinity,
+      width: 330,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
@@ -2343,7 +2352,7 @@ class _TypingCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: card,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(18),
         ),
         child: const Column(

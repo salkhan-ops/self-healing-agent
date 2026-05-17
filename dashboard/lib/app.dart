@@ -54,14 +54,7 @@ final _router = GoRouter(
   routes: [
     ShellRoute(
       builder: (context, state, child) {
-        return Scaffold(
-          body: Row(
-            children: [
-              const Sidebar(),
-              Expanded(child: child),
-            ],
-          ),
-        );
+        return _ResponsiveShell(child: child);
       },
       routes: [
         GoRoute(
@@ -108,6 +101,56 @@ final _router = GoRouter(
     ),
   ],
 );
+
+class _ResponsiveShell extends StatefulWidget {
+  const _ResponsiveShell({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ResponsiveShell> createState() => _ResponsiveShellState();
+}
+
+class _ResponsiveShellState extends State<_ResponsiveShell> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 768;
+
+        return Scaffold(
+          key: _scaffoldKey,
+          drawer: isMobile ? const Drawer(child: Sidebar()) : null,
+          body: isMobile
+              ? Stack(
+                  children: [
+                    widget.child,
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 12, top: 8),
+                        child: IconButton(
+                          onPressed: () =>
+                              _scaffoldKey.currentState?.openDrawer(),
+                          icon: const Icon(Icons.menu_rounded),
+                          tooltip: 'Open menu',
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Sidebar(),
+                    Expanded(child: widget.child),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
 
 class _SettingsScreen extends StatelessWidget {
   const _SettingsScreen();

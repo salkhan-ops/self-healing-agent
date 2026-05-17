@@ -194,7 +194,7 @@ class _PostScreenState extends State<PostScreen> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 960;
+        final isMobile = constraints.maxWidth < 768;
         final composer = _briefPanel(context);
         final output = _outputPanel(context);
         return Padding(
@@ -206,21 +206,24 @@ class _PostScreenState extends State<PostScreen> {
                 _topBar(),
                 const SizedBox(height: 18),
                 SizedBox(
-                  height: compact ? 640 : 420,
-                  child: compact
-                      ? ListView(
+                  height: isMobile ? 760 : 420,
+                  child: isMobile
+                      ? Column(
                           children: [
-                            composer,
+                            Expanded(child: composer),
                             const SizedBox(height: 16),
-                            output,
+                            Expanded(child: output),
                           ],
                         )
                       : Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(flex: 4, child: composer),
+                            SizedBox(
+                              width: constraints.maxWidth * 0.4,
+                              child: composer,
+                            ),
                             const SizedBox(width: 16),
-                            Expanded(flex: 6, child: output),
+                            Expanded(child: output),
                           ],
                         ),
                 ),

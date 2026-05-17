@@ -10,23 +10,18 @@ cd /Users/salmankhan/StudioProjects/self-healing-agent
 source venv/bin/activate
 ./backend/start.sh
 
-gcloud run services update self-healing-agent \
-  --region us-central1 \
-  --port=8080
 
-gcloud run services update self-healing-agent \
-  --region us-central1 \
-  --set-secrets GOOGLE_API_KEY=GEMINI_API_KEY:latest \
-  --set-env-vars PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006 \
-  --set-env-vars HALLUCINATION_THRESHOLD=0.4 \
-  --set-env-vars RELEVANCE_THRESHOLD=0.6 \
-  --set-env-vars LATENCY_THRESHOLD_MS=3000
 
-flutter build web \
-  --dart-define=API_BASE_URL=https://YOUR-BACKEND-URL \
-  --dart-define=WS_URL=wss://YOUR-BACKEND-URL/ws
 
-PHOENIX_HOST=https://phoenix-server-cdxsjpzqea-uc.a.run.app ./deploy/cloudrun/deploy_backend.sh
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent/dashboard
+
+flutter build web --release \
+  --dart-define=API_BASE_URL=https://self-healing-agent-274002881656.us-central1.run.app \
+  --dart-define=WS_URL=wss://self-healing-agent-274002881656.us-central1.run.app/ws
+
+
+  cd /Users/salmankhan/StudioProjects/self-healing-agent
 
 gcloud run deploy self-healing-agent \
   --source . \
@@ -34,3 +29,36 @@ gcloud run deploy self-healing-agent \
   --port=8080 \
   --allow-unauthenticated \
   --clear-base-image
+
+  open https://self-healing-agent-274002881656.us-central1.run.app
+
+
+
+
+
+
+
+
+
+
+
+  1 vCPU
+2 GiB RAM
+min-instances=1
+us-central1
+request-based billing
+gcloud run services update self-healing-agent \
+  --region us-central1 \
+  --memory=2Gi \
+  --cpu=1 \
+  --min-instances=1
+  
+  gcloud run deploy self-healing-agent \
+  --source . \
+  --region us-central1 \
+  --port=8080 \
+  --allow-unauthenticated \
+  --clear-base-image \
+  --memory=2Gi \
+  --cpu=1 \
+  --min-instances=1

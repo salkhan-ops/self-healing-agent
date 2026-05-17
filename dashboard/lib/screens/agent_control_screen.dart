@@ -49,9 +49,8 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact =
-            constraints.maxWidth < 900 || constraints.maxHeight < 720;
-        final lowerContent = compact
+        final isMobile = constraints.maxWidth < 768;
+        final lowerContent = isMobile
             ? ListView(
                 children: [
                   SizedBox(
