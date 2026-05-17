@@ -199,7 +199,7 @@ All 7 steps happen automatically. No human required.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/self-healing-agent.git
+git clone https://github.com/salkhan-ops/self-healing-agent.git
 cd self-healing-agent
 python3.12 -m venv venv
 source venv/bin/activate
