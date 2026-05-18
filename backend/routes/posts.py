@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from backend.services.agent_runner import websocket_manager
 from backend.services.metrics_store import MetricsStore
 from backend.services.post_agent import post_agent
+from backend.services.post_healer import post_healer
 from backend.services.post_history_store import add_post, clear_posts, list_posts
 from backend.services.post_scorer import post_scorer
 
@@ -131,4 +132,29 @@ async def reset_post_agent() -> dict:
         raise HTTPException(
             status_code=500,
             detail=f"Reset failed: {exc}",
+        ) from exc
+
+
+@router.post("/heal")
+async def heal_post_agent() -> dict:
+    """Run the dedicated post-agent healer without waiting for the full cross-agent loop."""
+    try:
+        healing = await asyncio.to_thread(post_healer.heal_recent_posts)
+        if healing is None:
+            return {
+                "status": "no_change",
+                "prompt_version": post_agent.prompt_version,
+            }
+
+        post_agent.update_prompt(healing.new_prompt)
+        await websocket_manager.broadcast(f"post_prompt_updated:v{post_agent.prompt_version}")
+        return {
+            "status": "healed",
+            "prompt_version": post_agent.prompt_version,
+            "root_cause": healing.root_cause,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Post healing failed: {exc}",
         ) from exc

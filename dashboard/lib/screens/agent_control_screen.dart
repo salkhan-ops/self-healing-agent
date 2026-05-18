@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/api_client.dart';
 import '../core/theme.dart';
 import '../providers/agent_provider.dart';
 
@@ -13,8 +12,6 @@ class AgentControlScreen extends StatefulWidget {
 }
 
 class _AgentControlScreenState extends State<AgentControlScreen> {
-  final _apiClient = ApiClient();
-  final _faqController = TextEditingController();
   double hallucinationLimit = 0.4;
   double relevanceMinimum = 0.6;
   double latencyMaximum = 3000;
@@ -25,19 +22,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AgentProvider>().connectWebSocket();
       context.read<AgentProvider>().loadStatus();
-      _loadFaq();
     });
-  }
-
-  @override
-  void dispose() {
-    _apiClient.close();
-    _faqController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadFaq() async {
-    _faqController.text = await _apiClient.getFaq();
   }
 
   @override
@@ -60,7 +45,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                   const SizedBox(height: 16),
                   _thresholds(),
                   const SizedBox(height: 16),
-                  SizedBox(height: 360, child: _faqEditor()),
+                  _learningLoopCard(agent),
                 ],
               )
             : Row(
@@ -75,7 +60,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  Expanded(child: _faqEditor()),
+                  Expanded(child: _learningLoopCard(agent)),
                 ],
               );
 
@@ -161,40 +146,106 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
     onLatencyChanged: (value) => setState(() => latencyMaximum = value),
   );
 
-  Widget _faqEditor() => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
+  Widget _learningLoopCard(AgentProvider agent) {
+    final status = agent.status;
+    final currentRunId = status['current_run_id']?.toString();
+    final lastRun = status['last_run']?.toString();
+    final nextRun = status['next_run']?.toString();
+    final lastError = status['last_error']?.toString();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Learning Loop',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'The agent observes recent behavior, diagnoses drift, updates prompts, and verifies whether the change actually improved outcomes.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 18),
+            _LoopStat(
+              label: 'Current state',
+              value: agent.isRunning
+                  ? (agent.isStopping ? 'Stopping safely' : 'Learning now')
+                  : 'Watching',
+            ),
+            _LoopStat(
+              label: 'Current run',
+              value: currentRunId == null || currentRunId.isEmpty
+                  ? 'No active run'
+                  : currentRunId,
+            ),
+            _LoopStat(
+              label: 'Last completed run',
+              value: lastRun == null || lastRun.isEmpty
+                  ? 'Not yet recorded'
+                  : lastRun,
+            ),
+            _LoopStat(
+              label: 'Next scheduled run',
+              value: nextRun == null || nextRun.isEmpty
+                  ? 'Manual only'
+                  : nextRun,
+            ),
+            const Spacer(),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: lastError == null || lastError.isEmpty
+                    ? AppColors.surface
+                    : AppColors.danger.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: lastError == null || lastError.isEmpty
+                      ? AppColors.card
+                      : AppColors.danger.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Text(
+                lastError == null || lastError.isEmpty
+                    ? 'No loop errors reported.'
+                    : 'Last error: $lastError',
+                style: TextStyle(
+                  color: lastError == null || lastError.isEmpty
+                      ? AppColors.textSecondary
+                      : AppColors.danger,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoopStat extends StatelessWidget {
+  const _LoopStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'FAQ Editor',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: TextField(
-              controller: _faqController,
-              expands: true,
-              maxLines: null,
-              minLines: null,
-              style: const TextStyle(fontFamily: 'monospace'),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: () => _apiClient.updateFaq(_faqController.text),
-              icon: const Icon(Icons.save),
-              label: const Text('Save'),
-            ),
-          ),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _Terminal extends StatelessWidget {

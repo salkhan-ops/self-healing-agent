@@ -178,7 +178,7 @@ class _SettingsScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'API ${AppConfig.apiBase}  •  WebSocket ${AppConfig.wsUrl}',
+                'API ${AppConfig.apiBaseUrl}  •  WebSocket ${AppConfig.wsUrl}',
               ),
             ),
           ),

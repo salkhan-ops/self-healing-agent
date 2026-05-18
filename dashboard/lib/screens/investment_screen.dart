@@ -17,8 +17,8 @@ import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
 import '../widgets/healing_journey_dialog.dart';
 
-const apiBase = AppConfig.apiBase;
-const wsUrl = AppConfig.wsUrl;
+const apiBase = AppConfig.apiBaseUrl;
+final wsUrl = AppConfig.wsUrl;
 
 const background = Color(0xFF0A0A0F);
 const surface = Color(0xFF12121A);

@@ -14,7 +14,12 @@ import re
 INVENTION_PHRASES = [
     "%",
     "x growth",
+    "epic",
     "revolutionary",
+    "monumental",
+    "game-changing",
+    "groundbreaking",
+    "transformative",
     "disrupting",
     "world-class",
     "industry-leading",
@@ -78,6 +83,10 @@ HALLUCINATION SCORE (0.0 to 1.0):
 1.0 = post invents specific numbers, percentages,
       superlatives, or facts not in the brief at all
 
+Treat unsupported hype words as unsupported claims when they are not present
+in the brief. Examples include "epic", "revolutionary", "monumental",
+"game-changing", "groundbreaking", and "transformative".
+
 RELEVANCE SCORE (0.0 to 1.0):
 0.0 = post does not reflect the brief at all
 0.5 = post captures some of the brief
@@ -94,10 +103,15 @@ Return ONLY valid JSON, no other text:
         text = re.sub(r"```$", "", text).strip()
         parsed = json.loads(text)
 
+        unsupported_hype_count = self._unsupported_hype_count(brief, post)
+        judge_hallucination = float(max(0.0, min(1.0, parsed["hallucination_score"])))
+        calibrated_hallucination = max(
+            judge_hallucination,
+            min(0.08 + unsupported_hype_count * 0.22, 0.95),
+        )
+
         return {
-            "hallucination_score": float(
-                max(0.0, min(1.0, parsed["hallucination_score"]))
-            ),
+            "hallucination_score": calibrated_hallucination,
             "relevance_score": float(max(0.0, min(1.0, parsed["relevance_score"]))),
             "latency_ms": 0.0,
         }
@@ -106,17 +120,13 @@ Return ONLY valid JSON, no other text:
         """Rule-based fallback for invented facts and brief overlap."""
         post_lower = post.lower()
         brief_lower = brief.lower()
-        invented = sum(
-            1
-            for phrase in INVENTION_PHRASES
-            if phrase in post_lower and phrase not in brief_lower
-        )
+        invented = self._unsupported_hype_count(brief, post)
 
         percentages_in_post = re.findall(r"\d+%", post_lower)
         percentages_in_brief = re.findall(r"\d+%", brief_lower)
         invented_pct = len(set(percentages_in_post) - set(percentages_in_brief))
         invented += invented_pct * 2
-        hallucination = min(0.08 + invented * 0.14, 0.95)
+        hallucination = min(0.08 + invented * 0.22, 0.95)
 
         brief_words = set(re.findall(r"[a-z0-9]+", brief_lower))
         post_words = set(re.findall(r"[a-z0-9]+", post_lower))
@@ -148,6 +158,16 @@ Return ONLY valid JSON, no other text:
             "relevance_score": round(relevance, 3),
             "latency_ms": 0.0,
         }
+
+    def _unsupported_hype_count(self, brief: str, post: str) -> int:
+        """Count hype or invention phrases present only in the generated post."""
+        brief_lower = brief.lower()
+        post_lower = post.lower()
+        return sum(
+            1
+            for phrase in INVENTION_PHRASES
+            if phrase in post_lower and phrase not in brief_lower
+        )
 
 
 post_scorer = PostScorer()

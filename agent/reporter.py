@@ -42,6 +42,7 @@ class Reporter:
         verification: Any,
         old_prompt: str,
         new_prompt: str,
+        comparisons: list[dict[str, Any]] | None = None,
     ) -> Report:
         """Create and save a plain English incident report."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -56,6 +57,7 @@ class Reporter:
             verification,
             old_prompt,
             new_prompt,
+            comparisons or [],
         )
 
         try:
@@ -91,6 +93,7 @@ class Reporter:
         verification: Any,
         old_prompt: str,
         new_prompt: str,
+        comparisons: list[dict[str, Any]],
     ) -> str:
         """Assemble the incident report in the required format."""
         before = self._evaluation_scores(evaluation)
@@ -102,6 +105,8 @@ class Reporter:
         reason = self._human_action_reason(human_action_needed, verification)
         fix_applied = self._describe_prompt_change(old_prompt, new_prompt)
         problem = self._describe_problem(before)
+
+        comparison_section = self._comparison_section(comparisons)
 
         return f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔧 SELF-HEALING REPORT — {timestamp}
@@ -124,7 +129,27 @@ AFTER:
 Improvement: {self._number(getattr(verification, "improvement_percent", 0.0), 0.0):+.0f}%
 Human Action Needed: {human_action_needed}
 Reason: {reason}
+{comparison_section}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+
+    def _comparison_section(self, comparisons: list[dict[str, Any]]) -> str:
+        """Render a compact before/after sample section for report review."""
+        if not comparisons:
+            return ""
+
+        lines = ["", "SAMPLE COMPARISONS:"]
+        for index, pair in enumerate(comparisons[:3], start=1):
+            question = str(pair.get("question", "")).strip()
+            before = str(pair.get("before", "")).strip()
+            after = str(pair.get("after", "")).strip()
+            lines.extend(
+                [
+                    f"{index}. Q: {question}",
+                    f"   Before: {before}",
+                    f"   After: {after}",
+                ]
+            )
+        return "\n".join(lines)
 
     def _evaluation_scores(self, evaluation: Any) -> dict[str, float]:
         """Normalize EvaluationResult-like values into a score dictionary."""

@@ -242,7 +242,14 @@ class AgentRunner:
 
         self._check_stop()
         reporter = Reporter(reports_dir=PROJECT_ROOT / "reports")
-        report = reporter.generate(evaluation, root_cause, verification, old_prompt, new_prompt)
+        report = reporter.generate(
+            evaluation,
+            root_cause,
+            verification,
+            old_prompt,
+            new_prompt,
+            comparisons=pairs,
+        )
         reporter.send_to_slack(report)
         return {"evaluation": evaluation, "verification": verification, "report": report}
 

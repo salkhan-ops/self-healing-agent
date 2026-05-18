@@ -10,8 +10,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
 
-const _apiBase = AppConfig.apiBase;
-const _wsUrl = AppConfig.wsUrl;
+const _apiBase = AppConfig.apiBaseUrl;
+final _wsUrl = AppConfig.wsUrl;
 const _primary = Color(0xFF6C63FF);
 const _success = Color(0xFF2ED573);
 const _warning = Color(0xFFFFA502);
@@ -239,28 +239,23 @@ class _PostScreenState extends State<PostScreen> {
 
   Widget _topBar() {
     final agent = context.watch<AgentProvider>();
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+    final platformSelector = SegmentedButton<String>(
+      segments: [
+        for (final value in platforms)
+          ButtonSegment(
+            value: value,
+            label: Text(_label(value), maxLines: 1, softWrap: false),
+          ),
+      ],
+      selected: {platform},
+      onSelectionChanged: (values) => setState(() => platform = values.first),
+    );
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
       crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.end,
       children: [
-        const Text(
-          'Social Media Posts',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(width: 8),
-        SegmentedButton<String>(
-          segments: [
-            for (final value in platforms)
-              ButtonSegment(
-                value: value,
-                label: Text(_label(value), maxLines: 1, softWrap: false),
-              ),
-          ],
-          selected: {platform},
-          onSelectionChanged: (values) =>
-              setState(() => platform = values.first),
-        ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
@@ -293,6 +288,48 @@ class _PostScreenState extends State<PostScreen> {
           icon: const Icon(Icons.stop_circle_outlined),
         ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 860;
+        final title = const Text(
+          'Social Media Posts',
+          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              title,
+              const SizedBox(height: 14),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: platformSelector,
+              ),
+              const SizedBox(height: 12),
+              actions,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 20),
+            Flexible(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: platformSelector,
+              ),
+            ),
+            const SizedBox(width: 14),
+            actions,
+          ],
+        );
+      },
     );
   }
 
@@ -352,6 +389,7 @@ class _PostScreenState extends State<PostScreen> {
 
   Widget _outputPanel(BuildContext context) {
     final post = latestPost;
+    final isPreparingHealedVersion = pendingHealingBaseline != null;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -363,6 +401,10 @@ class _PostScreenState extends State<PostScreen> {
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),
+            if (isPreparingHealedVersion) ...[
+              const _HealingInProgressBanner(),
+              const SizedBox(height: 12),
+            ],
             Expanded(
               child: post == null
                   ? const _EmptyState()
@@ -403,6 +445,7 @@ class _PostScreenState extends State<PostScreen> {
 
   Widget _historyTable() {
     final recent = history.take(5).toList();
+    final isPreparingHealedVersion = pendingHealingBaseline != null;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -414,6 +457,10 @@ class _PostScreenState extends State<PostScreen> {
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
+            if (isPreparingHealedVersion) ...[
+              const _HealingInProgressBanner(),
+              const SizedBox(height: 10),
+            ],
             if (recent.isEmpty)
               const Text(
                 'No posts generated yet.',
@@ -513,23 +560,38 @@ class _PostScreenState extends State<PostScreen> {
     pendingHealingBrief = brief;
     healedRetryCount = 0;
 
-    final agent = context.read<AgentProvider>();
-    if (!agent.isRunning) {
-      await agent.runNow();
+    try {
+      final response = await http.post(Uri.parse('$_apiBase/api/posts/heal'));
+      if (response.statusCode != 200) {
+        throw Exception('Post healer returned ${response.statusCode}');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['status'] == 'no_change') {
+        if (!mounted) return;
+        setState(() {
+          pendingHealingBaseline = null;
+          pendingHealingBrief = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No post healing change was needed.')),
+        );
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Agent Control started to heal Social Media Posts.'),
+            content: Text('Preparing healed version of this post.'),
           ),
         );
       }
-    } else if (mounted) {
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        pendingHealingBaseline = null;
+        pendingHealingBrief = null;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Agent Control is already running. Waiting for healing.',
-          ),
-        ),
+        SnackBar(content: Text('Could not start post healing: $error')),
       );
     }
   }
@@ -693,6 +755,38 @@ class _GeneratedPostCard extends StatelessWidget {
             text: '✓ Post is grounded in your brief.',
           ),
       ],
+    );
+  }
+}
+
+class _HealingInProgressBanner extends StatelessWidget {
+  const _HealingInProgressBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _primary.withValues(alpha: 0.28)),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Healing version is being prepared…',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

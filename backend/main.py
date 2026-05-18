@@ -51,6 +51,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:8000",
+        "https://salkhan-ops.github.io",
         *(origin for origin in [os.getenv("FLUTTER_WEB_ORIGIN", "")] if origin),
         "*",
     ],

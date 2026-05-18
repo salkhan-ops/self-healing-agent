@@ -31,3 +31,21 @@ gcloud run deploy self-healing-agent \
   --clear-base-image
 
   open https://self-healing-agent-274002881656.us-central1.run.app
+
+
+
+
+
+
+
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent
+
+API_BASE_URL="https://self-healing-agent-274002881656.us-central1.run.app" \
+./scripts/deploy_flutter_web_to_pages.sh
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent-landing
+git status
+git add .
+git commit -m "Deploy Flutter web UI"
+git push

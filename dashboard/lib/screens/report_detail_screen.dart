@@ -94,7 +94,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           report.contentText,
                           style: const TextStyle(
                             fontFamily: 'monospace',
-                            color: AppColors.textPrimary,
                             height: 1.5,
                           ),
                         ),

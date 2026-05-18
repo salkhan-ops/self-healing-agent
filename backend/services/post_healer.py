@@ -122,6 +122,8 @@ Requirements for the new system prompt:
 - It must remain a social media copywriter prompt, not customer support.
 - It must use only facts explicitly present in the raw brief.
 - It must forbid invented metrics, percentages, revenue, team size, rankings, awards, and unsupported superlatives.
+- It must explicitly forbid unsupported hype words such as "epic", "revolutionary", "monumental", "game-changing", "groundbreaking", and "transformative" unless those exact words appear in the raw brief.
+- Prefer plain factual phrasing over promotional exaggeration when the brief is sparse.
 - It may improve tone and wording without adding factual claims.
 - It must be concise, production-ready, and written as direct instructions to the model.
 - Return ONLY the new system prompt text.
