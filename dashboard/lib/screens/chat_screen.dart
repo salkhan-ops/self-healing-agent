@@ -35,6 +35,8 @@ const textSecondary = Color(0xFF8B8BA7);
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
+  static void clearCachedState() => _ChatScreenState.clearCachedState();
+
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -47,6 +49,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   static bool _savedSelfHealingActive = true;
   static List<Map<String, dynamic>> _savedHealingComparisons = [];
   static Map<String, dynamic> _savedHealingJourneyMeta = {};
+
+  static void clearCachedState() {
+    _savedMessages.clear();
+    _savedSessionId = '';
+    _savedPromptVersion = 1;
+    _savedHallucinationRate = 0.0;
+    _savedSelfHealingActive = true;
+    _savedHealingComparisons = [];
+    _savedHealingJourneyMeta = {};
+  }
 
   late List<Map<String, dynamic>> messages;
   final inputController = TextEditingController();

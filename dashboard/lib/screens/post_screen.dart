@@ -228,7 +228,15 @@ class _PostScreenState extends State<PostScreen> {
                         ),
                 ),
                 const SizedBox(height: 16),
-                _historyTable(),
+                isMobile
+                    ? _historyTable()
+                    : Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: constraints.maxWidth * 0.4,
+                          child: _historyTable(),
+                        ),
+                      ),
               ],
             ),
           ),
@@ -430,9 +438,19 @@ class _PostScreenState extends State<PostScreen> {
                     label: const Text('Copy'),
                   ),
                   FilledButton.icon(
-                    onPressed: isLoading ? null : _startHealingAndRegenerate,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Regenerate'),
+                    onPressed: isLoading || isPreparingHealedVersion
+                        ? null
+                        : _startHealingAndRegenerate,
+                    icon: isPreparingHealedVersion
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                    label: Text(
+                      isPreparingHealedVersion ? 'Healing…' : 'Regenerate',
+                    ),
                   ),
                 ],
               ),
@@ -551,6 +569,7 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   Future<void> _startHealingAndRegenerate() async {
+    if (pendingHealingBaseline != null) return;
     final post = latestPost;
     if (post == null) return;
     final brief = post['brief']?.toString() ?? '';

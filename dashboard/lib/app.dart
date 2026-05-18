@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_config.dart';
+import 'core/api_client.dart';
 import 'core/theme.dart';
 import 'providers/agent_provider.dart';
 import 'providers/metrics_provider.dart';
@@ -159,8 +160,15 @@ class _ResponsiveShellState extends State<_ResponsiveShell> {
   }
 }
 
-class _SettingsScreen extends StatelessWidget {
+class _SettingsScreen extends StatefulWidget {
   const _SettingsScreen();
+
+  @override
+  State<_SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<_SettingsScreen> {
+  bool _isClearingRecentPosts = false;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +187,105 @@ class _SettingsScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Text(
                 'API ${AppConfig.apiBaseUrl}  •  WebSocket ${AppConfig.wsUrl}',
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Local UI Cache',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Clears cached chat and investment sessions plus in-memory image cache on this device. Backend data is untouched.',
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      ChatScreen.clearCachedState();
+                      InvestmentScreen.clearCachedState();
+                      PaintingBinding.instance.imageCache.clear();
+                      PaintingBinding.instance.imageCache.clearLiveImages();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Local UI cache cleared.'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.delete_sweep_rounded),
+                    label: const Text('Clear cache'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Recent Posts History',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Clears the backend-held Social Media Posts history and resets that agent to prompt v1.',
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: _isClearingRecentPosts
+                        ? null
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() => _isClearingRecentPosts = true);
+                            try {
+                              final apiClient = ApiClient();
+                              late final Map<String, dynamic> result;
+                              try {
+                                result = await apiClient.resetPosts();
+                              } finally {
+                                apiClient.close();
+                              }
+                              if (!mounted) return;
+                              final failed = result['error'] == true;
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    failed
+                                        ? 'Could not clear recent posts history.'
+                                        : 'Recent posts history cleared.',
+                                  ),
+                                ),
+                              );
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isClearingRecentPosts = false);
+                              }
+                            }
+                          },
+                    icon: _isClearingRecentPosts
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.history_toggle_off_rounded),
+                    label: Text(
+                      _isClearingRecentPosts
+                          ? 'Clearing…'
+                          : 'Clear recent posts/history',
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

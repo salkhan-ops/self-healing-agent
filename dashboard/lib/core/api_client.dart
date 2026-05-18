@@ -64,6 +64,10 @@ class ApiClient {
     return _getMap('/api/agent/status');
   }
 
+  Future<Map<String, dynamic>> resetPosts() {
+    return _postMap('/api/posts/reset', {});
+  }
+
   Future<String> getFaq() async {
     final data = await _getMap('/api/faq');
     return data['content']?.toString() ?? '';

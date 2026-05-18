@@ -35,6 +35,8 @@ const demoTickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META'];
 class InvestmentScreen extends StatefulWidget {
   const InvestmentScreen({super.key});
 
+  static void clearCachedState() => _InvestmentScreenState.clearCachedState();
+
   @override
   State<InvestmentScreen> createState() => _InvestmentScreenState();
 }
@@ -55,6 +57,21 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   static List<String> _savedLastRiskFlags = [];
   static Map<String, dynamic>? _savedPendingHealingBaseline;
   static Map<String, dynamic>? _savedHealingJourneyPair;
+
+  static void clearCachedState() {
+    _savedMessages.clear();
+    _savedSessionId = '';
+    _savedSelectedTicker = 'AAPL';
+    _savedTickers = demoTickers;
+    _savedPromptVersion = 1;
+    _savedSecContext = null;
+    _secContextCache.clear();
+    _baselineAnswersByQuestion.clear();
+    _latestBaselineAnswer = null;
+    _savedLastRiskFlags = [];
+    _savedPendingHealingBaseline = null;
+    _savedHealingJourneyPair = null;
+  }
 
   late List<Map<String, dynamic>> messages;
   late String sessionId;
