@@ -44,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final content = compact
             ? ListView(
                 children: [
-                  _metricWrap(summary, points, constraints.maxWidth),
+                  _metricWrap(summary, points),
                   const SizedBox(height: 16),
                   SizedBox(height: 220, child: _LinePanel(points: points)),
                   const SizedBox(height: 16),
@@ -55,10 +55,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
             : Column(
                 children: [
-                  SizedBox(
-                    height: 150,
-                    child: _metricWrap(summary, points, constraints.maxWidth),
-                  ),
+                  SizedBox(height: 150, child: _metricWrap(summary, points)),
                   const SizedBox(height: 16),
                   SizedBox(height: 220, child: _LinePanel(points: points)),
                   const SizedBox(height: 16),
@@ -79,24 +76,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _metricWrap(
-    dynamic summary,
-    List<MetricPoint> points,
-    double maxWidth,
-  ) {
+  Widget _metricWrap(dynamic summary, List<MetricPoint> points) {
     final cards = _metricCards(summary, points);
-    final cardWidth = maxWidth < 560
-        ? maxWidth
-        : maxWidth < 1024
-        ? (maxWidth - 12) / 2
-        : (maxWidth - 36) / 4;
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: cards
-          .map((card) => SizedBox(width: cardWidth, height: 150, child: card))
-          .toList(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final columns = maxWidth < 560
+            ? 1
+            : maxWidth < 1024
+            ? 2
+            : 4;
+        final totalGap = 12 * (columns - 1);
+        final cardWidth = (maxWidth - totalGap) / columns;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: cards
+              .map(
+                (card) => SizedBox(width: cardWidth, height: 150, child: card),
+              )
+              .toList(),
+        );
+      },
     );
   }
 

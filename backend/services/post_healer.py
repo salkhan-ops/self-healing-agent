@@ -16,9 +16,10 @@ except ImportError:
     genai = None
 
 from config.settings import GOOGLE_API_KEY
+from backend.services.learning_memory import learning_memory
 from backend.services.post_agent import post_agent
 from backend.services.post_history_store import list_posts
-from backend.services.post_scorer import post_scorer
+from backend.services.post_scorer import INVENTION_PHRASES, post_scorer
 
 
 @dataclass
@@ -37,6 +38,8 @@ class PostHealingResult:
 class PostHealer:
     """Diagnose and rewrite the post agent from actual failed post history."""
 
+    LOCAL_PATCH_CATEGORIES = {"INVENTED_METRICS", "UNSUPPORTED_SUPERLATIVES"}
+
     def heal_recent_posts(self) -> PostHealingResult | None:
         """Heal from recent hallucinated post generations when evidence exists."""
         history = list_posts(limit=12)
@@ -54,7 +57,11 @@ class PostHealer:
         if not new_prompt or new_prompt.strip() == old_prompt.strip():
             return None
 
-        verification = self._verify(new_prompt, problematic[:3])
+        # Known failure patterns use deterministic prompt patches, so one
+        # verification example is enough. Ambiguous Gemini rewrites still verify
+        # a wider sample.
+        verify_count = 1 if root_cause in self.LOCAL_PATCH_CATEGORIES else 3
+        verification = self._verify(new_prompt, problematic[:verify_count])
         before_scores = self._average_scores(problematic[:3])
         after_scores = self._average_scores(verification)
         return PostHealingResult(
@@ -68,8 +75,15 @@ class PostHealer:
         )
 
     def _analyze(self, traces: list[dict]) -> tuple[str, str]:
+        local_category, local_explanation = self._analyze_with_rules(traces)
+        if local_category in self.LOCAL_PATCH_CATEGORIES:
+            learning_memory.remember_patch(
+                "posts", local_category, self._patch_for_category(local_category)
+            )
+            return local_category, local_explanation
+
         if genai is None or not GOOGLE_API_KEY:
-            raise RuntimeError("Gemini is required for real post healing analysis")
+            return local_category, local_explanation
         genai.configure(api_key=GOOGLE_API_KEY)
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         prompt = f"""
@@ -95,6 +109,34 @@ Return ONLY JSON:
             explanation = "Generated posts added claims not supported by the source briefs."
         return category, explanation
 
+    def _analyze_with_rules(self, traces: list[dict]) -> tuple[str, str]:
+        joined_posts = "\n".join(str(t.get("post", "")) for t in traces).lower()
+        joined_briefs = "\n".join(str(t.get("brief", "")) for t in traces).lower()
+
+        post_percentages = set(re.findall(r"\d+%|\d+(?:\.\d+)?x", joined_posts))
+        brief_percentages = set(re.findall(r"\d+%|\d+(?:\.\d+)?x", joined_briefs))
+        if post_percentages - brief_percentages:
+            return (
+                "INVENTED_METRICS",
+                "Generated posts introduced metrics, percentages, or growth claims absent from the source brief.",
+            )
+
+        unsupported_hype = [
+            phrase
+            for phrase in INVENTION_PHRASES
+            if phrase in joined_posts and phrase not in joined_briefs
+        ]
+        if unsupported_hype:
+            return (
+                "UNSUPPORTED_SUPERLATIVES",
+                "Generated posts used unsupported hype/superlatives instead of staying factual.",
+            )
+
+        return (
+            "OTHER",
+            "Generated posts added claims not supported by the source briefs.",
+        )
+
     def _rewrite_prompt(
         self,
         current_prompt: str,
@@ -102,8 +144,17 @@ Return ONLY JSON:
         category: str,
         explanation: str,
     ) -> str:
+        cached_patch = learning_memory.get_patch("posts", category)
+        if cached_patch:
+            return self._append_patch(current_prompt, cached_patch)
+
+        if category in self.LOCAL_PATCH_CATEGORIES:
+            patch = self._patch_for_category(category)
+            learning_memory.remember_patch("posts", category, patch)
+            return self._append_patch(current_prompt, patch)
+
         if genai is None or not GOOGLE_API_KEY:
-            raise RuntimeError("Gemini is required for real post prompt rewriting")
+            return self._append_patch(current_prompt, self._patch_for_category("OTHER"))
         genai.configure(api_key=GOOGLE_API_KEY)
         model = genai.GenerativeModel(model_name="gemini-2.5-flash")
         prompt = f"""
@@ -130,6 +181,31 @@ Requirements for the new system prompt:
 """.strip()
         response = model.generate_content(prompt)
         return getattr(response, "text", "").strip()
+
+    def _patch_for_category(self, category: str) -> str:
+        patches = {
+            "INVENTED_METRICS": (
+                "Learned rule: never invent metrics, percentages, revenue, growth rates, "
+                "rankings, awards, customer counts, or team size. Use numbers only when "
+                "the raw brief explicitly provides them."
+            ),
+            "UNSUPPORTED_SUPERLATIVES": (
+                "Learned rule: do not use unsupported superlatives or hype words such as "
+                "epic, revolutionary, monumental, explosive, game-changing, groundbreaking, "
+                "or transformative unless the exact word appears in the raw brief. Prefer "
+                "plain factual phrasing."
+            ),
+            "OTHER": (
+                "Learned rule: every factual claim must be grounded in the raw brief. "
+                "If the brief is sparse, write a concise factual post rather than adding claims."
+            ),
+        }
+        return patches.get(category, patches["OTHER"])
+
+    def _append_patch(self, current_prompt: str, patch: str) -> str:
+        if patch.lower() in current_prompt.lower():
+            return current_prompt
+        return f"{current_prompt.rstrip()}\n\nLEARNED CONSTRAINTS:\n- {patch}"
 
     def _verify(self, candidate_prompt: str, examples: list[dict]) -> list[dict[str, Any]]:
         traces: list[dict[str, Any]] = []

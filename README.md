@@ -243,13 +243,25 @@ PUBLIC_DEMO_AGENT_RUN_LIMIT=1
 ```
 
 In public demo mode:
-- The full multi-agent healing loop is limited to one run per session
-- The most expensive endpoints are rate-limited
+- The full multi-agent healing loop is limited to one run per browser/session
+- Backend in-memory limits provide a second safety net for public usage
 - Social media post healing remains fully available
-- The UI hides Agent Control run/stop buttons to prevent accidental
-  repeated triggering
+- The UI shows clear restriction messages instead of silently hiding the product
 
-### 4. Tightened Post Scorer
+### 4. Cost-Aware Learning Loop
+
+The healing path uses a cheap-first strategy before spending on LLM calls:
+
+- **Policy memory / learned rules:** recurring failures create reusable rules such as
+  “do not use unsupported superlatives” or “do not give buy/sell advice.”
+- **Cached failure patterns:** repeated post or investment failures reuse the previous
+  prompt patch instead of diagnosing and rewriting from scratch.
+- **Cheap judge first:** deterministic scorers catch obvious pass/fail cases before
+  calling Gemini as judge.
+- **Prompt patches:** known failures append a small learned constraint instead of
+  asking Gemini to rewrite the entire system prompt.
+- **Batch repair:** one healing pass learns from recent failures and verifies a small
+  focused sample, so one repair can improve future examples.
 
 Unsupported hype phrases such as `EPIC`, `revolutionary`, `UNLEASHED`,
 and `MONUMENTAL` are caught by cheaper rule-based calibration before

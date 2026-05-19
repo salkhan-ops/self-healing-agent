@@ -49,11 +49,15 @@ class PostScorer:
 
     def score(self, brief: str, post: str, prompt_version: int) -> dict[str, float]:
         """Score a generated post against its source brief."""
+        rule_score = self._score_with_rules(brief, post)
+        if self._rules_are_confident(rule_score):
+            return rule_score
+
         try:
             return self._score_with_gemini(brief, post)
         except Exception as exc:
             print(f"⚠️ Post LLM scoring failed, using rules: {exc}")
-            return self._score_with_rules(brief, post)
+            return rule_score
 
     def _score_with_gemini(self, brief: str, post: str) -> dict[str, float]:
         """Ask Gemini to judge the post against the brief."""
@@ -168,6 +172,14 @@ Return ONLY valid JSON, no other text:
             for phrase in INVENTION_PHRASES
             if phrase in post_lower and phrase not in brief_lower
         )
+
+    def _rules_are_confident(self, score: dict[str, float]) -> bool:
+        """Avoid LLM judging when cheap rules are already decisive."""
+        hallucination = float(score.get("hallucination_score", 0.0))
+        relevance = float(score.get("relevance_score", 0.0))
+        clear_failure = hallucination >= 0.4
+        clear_pass = hallucination <= 0.1 and relevance >= 0.9
+        return clear_failure or clear_pass
 
 
 post_scorer = PostScorer()

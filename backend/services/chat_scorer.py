@@ -53,14 +53,17 @@ class ChatScorer:
         self, question: str, answer: str, prompt_version: int
     ) -> dict[str, float]:
         """
-        Score answer using Gemini as judge.
-        Falls back to rule-based scoring if Gemini fails.
+        Score answer using cheap rules first, then Gemini only when ambiguous.
         """
+        rule_score = self._score_with_rules(answer)
+        if self._rules_are_confident(rule_score):
+            return rule_score
+
         try:
             return self._score_with_gemini(question, answer)
         except Exception as exc:
             print(f"⚠️ LLM scoring failed, using rules: {exc}")
-            return self._score_with_rules(answer)
+            return rule_score
 
     def _score_with_gemini(self, question: str, answer: str) -> dict[str, float]:
         """Ask Gemini to score the answer as a judge."""
@@ -145,6 +148,11 @@ Return ONLY valid JSON, no other text:
             "relevance_score": round(relevance, 3),
             "latency_ms": 0.0,
         }
+
+    def _rules_are_confident(self, score: dict[str, float]) -> bool:
+        hallucination = float(score.get("hallucination_score", 0.0))
+        relevance = float(score.get("relevance_score", 0.0))
+        return hallucination >= 0.45 or (hallucination <= 0.08 and relevance >= 0.7)
 
     def _load_faq(self) -> str:
         try:

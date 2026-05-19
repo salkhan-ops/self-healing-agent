@@ -18,6 +18,7 @@ except ImportError:
 from config.settings import GOOGLE_API_KEY
 from backend.services.investment_agent import investment_agent
 from backend.services.investment_history_store import list_investment_entries
+from backend.services.learning_memory import learning_memory
 
 
 @dataclass
@@ -34,6 +35,8 @@ class InvestmentHealingResult:
 class InvestmentHealer:
     """Diagnose and improve the investment agent from its own bad answers."""
 
+    LOCAL_PATCH_CATEGORIES = {"UNSAFE_ADVICE", "MISSING_GROUNDING", "MISSING_DISCLOSURE"}
+
     def heal_recent_answers(self) -> InvestmentHealingResult | None:
         history = list_investment_entries(limit=12)
         problematic = [item for item in history if item.get("risk_flags")]
@@ -44,7 +47,8 @@ class InvestmentHealer:
         new_prompt = self._rewrite_prompt(old_prompt, problematic, category, explanation)
         if not new_prompt or new_prompt.strip() == old_prompt.strip():
             return None
-        verification = self._verify(new_prompt, problematic[:3])
+        verify_count = 1 if category in self.LOCAL_PATCH_CATEGORIES else 3
+        verification = self._verify(new_prompt, problematic[:verify_count])
         return InvestmentHealingResult(
             old_prompt=old_prompt,
             new_prompt=new_prompt,
@@ -56,7 +60,17 @@ class InvestmentHealer:
         )
 
     def _analyze(self, traces: list[dict]) -> tuple[str, str]:
-        model = self._model()
+        local_category, local_explanation = self._analyze_with_rules(traces)
+        if local_category in self.LOCAL_PATCH_CATEGORIES:
+            learning_memory.remember_patch(
+                "investment", local_category, self._patch_for_category(local_category)
+            )
+            return local_category, local_explanation
+
+        try:
+            model = self._model()
+        except RuntimeError:
+            return local_category, local_explanation
         prompt = f"""
 You are diagnosing failures in an SEC-grounded investment analyst.
 
@@ -78,8 +92,49 @@ Return ONLY JSON:
         explanation = str(parsed.get("explanation") or "").strip()
         return category, explanation or "Answers violated SEC-grounding or investment-safety constraints."
 
+    def _analyze_with_rules(self, traces: list[dict]) -> tuple[str, str]:
+        flags = " ".join(
+            str(flag).lower()
+            for trace in traces
+            for flag in (trace.get("risk_flags") or [])
+        )
+        answers = "\n".join(str(trace.get("answer", "")).lower() for trace in traces)
+        combined = f"{flags} {answers}"
+
+        if any(term in combined for term in ["buy", "sell", "hold", "financial advice", "guarantee"]):
+            return (
+                "UNSAFE_ADVICE",
+                "Answers appear to provide personal buy/sell guidance, guarantees, or investment advice.",
+            )
+        if any(term in combined for term in ["source", "sec", "filing", "unsupported", "grounding"]):
+            return (
+                "MISSING_GROUNDING",
+                "Answers did not clearly ground claims in supplied SEC context and sources.",
+            )
+        if any(term in combined for term in ["disclosure", "not financial advice", "limitation"]):
+            return (
+                "MISSING_DISCLOSURE",
+                "Answers missed required caveats, limitations, or not-financial-advice disclosure.",
+            )
+        return (
+            "OTHER",
+            "Answers violated SEC-grounding or investment-safety constraints.",
+        )
+
     def _rewrite_prompt(self, current_prompt: str, traces: list[dict], category: str, explanation: str) -> str:
-        model = self._model()
+        cached_patch = learning_memory.get_patch("investment", category)
+        if cached_patch:
+            return self._append_patch(current_prompt, cached_patch)
+
+        if category in self.LOCAL_PATCH_CATEGORIES:
+            patch = self._patch_for_category(category)
+            learning_memory.remember_patch("investment", category, patch)
+            return self._append_patch(current_prompt, patch)
+
+        try:
+            model = self._model()
+        except RuntimeError:
+            return self._append_patch(current_prompt, self._patch_for_category("OTHER"))
         prompt = f"""
 Rewrite this INVESTMENT ANALYST system prompt to fix the observed failures.
 
@@ -101,6 +156,33 @@ Requirements:
 - Return ONLY the new system prompt text.
 """.strip()
         return getattr(model.generate_content(prompt), "text", "").strip()
+
+    def _patch_for_category(self, category: str) -> str:
+        patches = {
+            "UNSAFE_ADVICE": (
+                "Learned rule: do not give personal buy/sell/hold advice, guarantees, "
+                "price targets, or instructions to trade. Provide balanced context and "
+                "include 'Not financial advice.'"
+            ),
+            "MISSING_GROUNDING": (
+                "Learned rule: every material claim must be grounded in supplied SEC "
+                "context. Name the filing/source when possible and state when evidence is missing."
+            ),
+            "MISSING_DISCLOSURE": (
+                "Learned rule: always include data limitations, key risks, and "
+                "'Not financial advice' for investment analysis."
+            ),
+            "OTHER": (
+                "Learned rule: stay SEC-grounded, balanced, and cautious; avoid speculation "
+                "or unsupported claims when context is thin."
+            ),
+        }
+        return patches.get(category, patches["OTHER"])
+
+    def _append_patch(self, current_prompt: str, patch: str) -> str:
+        if patch.lower() in current_prompt.lower():
+            return current_prompt
+        return f"{current_prompt.rstrip()}\n\nLEARNED CONSTRAINTS:\n- {patch}"
 
     def _verify(self, candidate_prompt: str, examples: list[dict]) -> list[dict[str, Any]]:
         traces: list[dict[str, Any]] = []
