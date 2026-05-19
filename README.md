@@ -2,7 +2,7 @@
 
 > **"They wake up in the morning, see this in Slack, and their AI already fixed itself overnight."**
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Cloud%20Run-4285F4?style=for-the-badge&logo=google-cloud)](https://self-healing-agent-274002881656.us-central1.run.app/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-4285F4?style=for-the-badge&logo=github)](https://salkhan-ops.github.io/self-healing-agent-landing/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
 [![Built for](https://img.shields.io/badge/Built%20for-Google%20Cloud%20Rapid%20Agent%20Hackathon-orange?style=for-the-badge)](https://rapid-agent.devpost.com/)
 [![Powered by](https://img.shields.io/badge/Powered%20by-Gemini%202.5%20Flash-blue?style=for-the-badge)](https://ai.google.dev/)
@@ -11,7 +11,7 @@
 
 ## 🌐 Live Demo
 
-**[https://self-healing-agent-274002881656.us-central1.run.app/](https://self-healing-agent-274002881656.us-central1.run.app/)**
+**[https://salkhan-ops.github.io/self-healing-agent-landing/](https://salkhan-ops.github.io/self-healing-agent-landing/)**
 
 No setup required. Open in any browser. All three use cases are live.
 

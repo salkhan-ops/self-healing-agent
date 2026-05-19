@@ -30,7 +30,7 @@ gcloud run deploy self-healing-agent \
   --allow-unauthenticated \
   --clear-base-image
 
-  open https://self-healing-agent-274002881656.us-central1.run.app
+  open https://salkhan-ops.github.io/self-healing-agent-landing
 
 
 
