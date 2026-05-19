@@ -18,7 +18,7 @@ class Sidebar extends StatefulWidget {
 class _SidebarState extends State<Sidebar> {
   final _apiClient = ApiClient();
   Timer? _timer;
-  bool _phoenixConnected = false;
+  bool _backendOnline = false;
 
   @override
   void initState() {
@@ -39,7 +39,7 @@ class _SidebarState extends State<Sidebar> {
     if (!mounted) {
       return;
     }
-    setState(() => _phoenixConnected = status['error'] != true);
+    setState(() => _backendOnline = status['error'] != true);
   }
 
   @override
@@ -148,7 +148,7 @@ class _SidebarState extends State<Sidebar> {
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: _phoenixConnected
+                    color: _backendOnline
                         ? AppColors.success
                         : AppColors.danger,
                     shape: BoxShape.circle,
@@ -157,7 +157,7 @@ class _SidebarState extends State<Sidebar> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    _phoenixConnected ? 'Phoenix connected' : 'Phoenix offline',
+                    _backendOnline ? 'Backend online' : 'Backend offline',
                     style: TextStyle(
                       color: Theme.of(context).textTheme.bodySmall?.color,
                       fontSize: 12,

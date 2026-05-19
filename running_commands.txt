@@ -60,3 +60,25 @@ git status
 git add .
 git commit -m "Deploy Flutter web UI"
 git push
+
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent
+
+gcloud run deploy self-healing-agent \
+  --source . \
+  --region us-central1 \
+  --port=8080 \
+  --allow-unauthenticated \
+  --clear-base-image \
+  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=1
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent
+PUBLIC_DEMO_MODE=true \
+API_BASE_URL="https://self-healing-agent-274002881656.us-central1.run.app" \
+./scripts/deploy_flutter_web_to_pages.sh
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent-landing
+git status
+git add .
+git commit -m "Deploy Flutter web UI"
+git push

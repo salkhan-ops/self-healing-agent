@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/api_client.dart';
+import '../core/app_config.dart';
+import '../core/browser_storage.dart';
 import '../core/websocket.dart';
 
 class AgentProvider extends ChangeNotifier {
@@ -19,17 +21,42 @@ class AgentProvider extends ChangeNotifier {
   bool isStopping = false;
   List<String> liveOutput = [];
 
-  Future<void> runNow() async {
+  static const _publicDemoRunUsedKey = 'public_demo_agent_control_used';
+
+  Future<Map<String, dynamic>> runNow() async {
+    if (AppConfig.publicDemoMode &&
+        BrowserStorage.getBool(_publicDemoRunUsedKey)) {
+      final result = {
+        'run_id': '',
+        'status': 'disabled',
+        'message': 'Public demo allows one full Agent Control run per browser.',
+      };
+      liveOutput.add(result['message']!);
+      notifyListeners();
+      return result;
+    }
+
     final result = await _apiClient.runAgentNow();
+    if (result['status'] == 'disabled') {
+      liveOutput.add(result['message']?.toString() ?? 'Agent run disabled.');
+      await loadStatus();
+      notifyListeners();
+      return result;
+    }
+
     if (result['error'] != true) {
       isRunning = true;
       liveOutput.add('Agent run started: ${result['run_id'] ?? ''}');
+      if (AppConfig.publicDemoMode && result['status'] == 'started') {
+        BrowserStorage.setBool(_publicDemoRunUsedKey, true);
+      }
       await loadStatus();
       notifyListeners();
     }
+    return result;
   }
 
-  Future<void> stopNow() async {
+  Future<Map<String, dynamic>> stopNow() async {
     final result = await _apiClient.stopAgentNow();
     if (result['error'] != true) {
       isStopping = result['status'] == 'stopping';
@@ -37,6 +64,7 @@ class AgentProvider extends ChangeNotifier {
       await loadStatus();
       notifyListeners();
     }
+    return result;
   }
 
   Future<void> loadStatus() async {

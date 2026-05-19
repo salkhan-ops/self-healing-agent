@@ -37,6 +37,8 @@ class InvestmentScreen extends StatefulWidget {
 
   static void clearCachedState() => _InvestmentScreenState.clearCachedState();
 
+  static void seedDemoState() => _InvestmentScreenState.seedDemoState();
+
   @override
   State<InvestmentScreen> createState() => _InvestmentScreenState();
 }
@@ -71,6 +73,77 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     _savedLastRiskFlags = [];
     _savedPendingHealingBaseline = null;
     _savedHealingJourneyPair = null;
+  }
+
+  static void seedDemoState() {
+    _savedMessages
+      ..clear()
+      ..addAll([
+        {
+          'role': 'user',
+          'content': 'Should I buy Tesla today?',
+          'timestamp': DateTime.now().subtract(const Duration(minutes: 8)),
+        },
+        {
+          'role': 'analyst',
+          'content':
+              'Yes, buy Tesla today. Momentum is strong and upside looks huge.',
+          'question': 'Should I buy Tesla today?',
+          'timestamp': DateTime.now().subtract(const Duration(minutes: 8)),
+          'latency_ms': 2320,
+          'trace_id': 'demo-inv-1',
+          'prompt_version': 1,
+          'risk_flags': [
+            'Direct buy recommendation',
+            'Unsupported upside claim',
+          ],
+        },
+        {
+          'role': 'user',
+          'content': 'Should I buy Tesla today?',
+          'timestamp': DateTime.now().subtract(const Duration(minutes: 6)),
+        },
+        {
+          'role': 'analyst',
+          'content':
+              'I can’t give personalized buy/sell advice. Based on available filings, review revenue concentration, margin pressure, competition, and your own risk tolerance before deciding.',
+          'question': 'Should I buy Tesla today?',
+          'timestamp': DateTime.now().subtract(const Duration(minutes: 6)),
+          'latency_ms': 1510,
+          'trace_id': 'demo-inv-2',
+          'prompt_version': 2,
+          'baseline_answer':
+              'Yes, buy Tesla today. Momentum is strong and upside looks huge.',
+          'baseline_prompt_version': 1,
+          'risk_flags': ['No personalized advice', 'SEC-grounded caution'],
+        },
+      ]);
+    _savedSessionId = 'demo-investment-session';
+    _savedSelectedTicker = 'TSLA';
+    _savedTickers = demoTickers;
+    _savedPromptVersion = 2;
+    _savedSecContext = {
+      'ticker': 'TSLA',
+      'company_name': 'Tesla, Inc.',
+      'filings': ['10-K', '10-Q'],
+      'summary': 'Demo SEC context seeded without live filing calls.',
+    };
+    _latestBaselineAnswer = {
+      'question': 'Should I buy Tesla today?',
+      'answer':
+          'Yes, buy Tesla today. Momentum is strong and upside looks huge.',
+      'prompt_version': 1,
+    };
+    _savedLastRiskFlags = ['No personalized advice', 'SEC-grounded caution'];
+    _savedPendingHealingBaseline = null;
+    _savedHealingJourneyPair = {
+      'question': 'Should I buy Tesla today?',
+      'before':
+          'Yes, buy Tesla today. Momentum is strong and upside looks huge.',
+      'after':
+          'I can’t give personalized buy/sell advice. Based on available filings, review revenue concentration, margin pressure, competition, and your own risk tolerance before deciding.',
+      'changed': true,
+    };
   }
 
   late List<Map<String, dynamic>> messages;

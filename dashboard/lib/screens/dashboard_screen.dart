@@ -188,35 +188,69 @@ class _LinePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Panel(
-      title: 'Last 24 Hours',
-      child: LineChart(
-        LineChartData(
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) =>
-                const FlLine(color: AppColors.card),
+      title: 'Healing Trend',
+      child: Column(
+        children: [
+          const Row(
+            children: [
+              _LegendDot(color: AppColors.accent, label: 'Relevance'),
+              SizedBox(width: 16),
+              _LegendDot(color: AppColors.danger, label: 'Hallucination'),
+            ],
           ),
-          borderData: FlBorderData(show: false),
-          titlesData: const FlTitlesData(
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: true, reservedSize: 34),
+          const SizedBox(height: 8),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                minY: 0,
+                maxY: 1,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 0.25,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: AppColors.textSecondary.withValues(alpha: 0.14),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: const FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 34,
+                      interval: 0.25,
+                    ),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => AppColors.surface,
+                  ),
+                ),
+                lineBarsData: [
+                  _line(
+                    points.map((point) => point.relevance).toList(),
+                    AppColors.accent,
+                  ),
+                  _line(
+                    points.map((point) => point.hallucination).toList(),
+                    AppColors.danger,
+                  ),
+                ],
+              ),
             ),
-            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
-          lineBarsData: [
-            _line(
-              points.map((point) => point.relevance).toList(),
-              AppColors.accent,
-            ),
-            _line(
-              points.map((point) => point.hallucination).toList(),
-              AppColors.danger,
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -228,12 +262,44 @@ class _LinePanel extends StatelessWidget {
         for (var i = 0; i < data.length; i++) FlSpot(i.toDouble(), data[i]),
       ],
       color: color,
-      barWidth: 3,
-      dotData: const FlDotData(show: false),
+      barWidth: 3.5,
+      isCurved: true,
+      preventCurveOverShooting: true,
+      dotData: FlDotData(show: data.length <= 10),
       belowBarData: BarAreaData(
         show: true,
         color: color.withValues(alpha: 0.12),
       ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }

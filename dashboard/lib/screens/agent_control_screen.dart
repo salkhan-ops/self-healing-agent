@@ -85,7 +85,22 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                         ElevatedButton.icon(
                           onPressed: agent.isRunning
                               ? null
-                              : () => agent.runNow(),
+                              : () async {
+                                  final messenger = ScaffoldMessenger.of(
+                                    context,
+                                  );
+                                  final result = await agent.runNow();
+                                  if (result['status'] == 'disabled') {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          result['message']?.toString() ??
+                                              'Public demo limit reached.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
                           icon: const Icon(Icons.play_arrow_rounded),
                           label: const Text('Run Agent Now'),
                           style: ElevatedButton.styleFrom(

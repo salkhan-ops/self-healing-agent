@@ -228,15 +228,7 @@ class _PostScreenState extends State<PostScreen> {
                         ),
                 ),
                 const SizedBox(height: 16),
-                isMobile
-                    ? _historyTable()
-                    : Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(
-                          width: constraints.maxWidth * 0.4,
-                          child: _historyTable(),
-                        ),
-                      ),
+                _historyTable(),
               ],
             ),
           ),
@@ -277,7 +269,22 @@ class _PostScreenState extends State<PostScreen> {
         ),
         IconButton.outlined(
           tooltip: 'Run Agent Control',
-          onPressed: agent.isRunning ? null : agent.runNow,
+          onPressed: agent.isRunning
+              ? null
+              : () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final result = await agent.runNow();
+                  if (result['status'] == 'disabled') {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          result['message']?.toString() ??
+                              'Public demo limit reached.',
+                        ),
+                      ),
+                    );
+                  }
+                },
           style: IconButton.styleFrom(
             foregroundColor: _success,
             side: BorderSide(color: _success.withValues(alpha: 0.7)),
@@ -287,7 +294,7 @@ class _PostScreenState extends State<PostScreen> {
         IconButton.outlined(
           tooltip: 'Stop Agent Control',
           onPressed: agent.isRunning && !agent.isStopping
-              ? agent.stopNow
+              ? () => agent.stopNow()
               : null,
           style: IconButton.styleFrom(
             foregroundColor: _danger,

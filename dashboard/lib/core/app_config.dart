@@ -9,6 +9,11 @@ class AppConfig {
     defaultValue: '',
   );
 
+  static const bool publicDemoMode = bool.fromEnvironment(
+    'PUBLIC_DEMO_MODE',
+    defaultValue: false,
+  );
+
   static String get wsUrl => _explicitWsUrl.isNotEmpty
       ? _explicitWsUrl
       : _webSocketUrlFrom(apiBaseUrl);

@@ -31,10 +31,18 @@ fi
 cd "$FLUTTER_DIR"
 flutter clean
 flutter pub get
-flutter build web \
+
+BUILD_ARGS=(
   --release \
   --base-href "$BASE_HREF" \
   --dart-define=API_BASE_URL="$API_BASE_URL"
+)
+
+if [[ "${PUBLIC_DEMO_MODE:-false}" == "true" || "${PUBLIC_DEMO_MODE:-false}" == "1" ]]; then
+  BUILD_ARGS+=(--dart-define=PUBLIC_DEMO_MODE=true)
+fi
+
+flutter build web "${BUILD_ARGS[@]}"
 
 mkdir -p "$LANDING_DIR"
 rsync -a --delete --exclude '.git/' "$FLUTTER_DIR/build/web/" "$LANDING_DIR/"

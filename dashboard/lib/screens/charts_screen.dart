@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -41,7 +43,6 @@ class _ChartsScreenState extends State<ChartsScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxHeight < 760;
         return Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -70,74 +71,43 @@ class _ChartsScreenState extends State<ChartsScreen> {
               _MetricHint(points: points),
               const SizedBox(height: 14),
               Expanded(
-                child: compact
-                    ? ListView(
-                        children: [
-                          SizedBox(
-                            height: 240,
-                            child: _Chart(
-                              title: 'Hallucination Rate',
-                              color: AppColors.danger,
-                              values: points
-                                  .map((p) => p.hallucination)
-                                  .toList(),
-                              idealText: 'lower is better',
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 240,
-                            child: _Chart(
-                              title: 'Relevance Score',
-                              color: AppColors.accent,
-                              values: points.map((p) => p.relevance).toList(),
-                              idealText: 'higher is better',
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 240,
-                            child: _Chart(
-                              title: 'Latency',
-                              color: AppColors.warning,
-                              values: points.map((p) => p.latencyMs).toList(),
-                              idealText: 'milliseconds',
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        children: [
-                          Expanded(
-                            child: _Chart(
-                              title: 'Hallucination Rate',
-                              color: AppColors.danger,
-                              values: points
-                                  .map((p) => p.hallucination)
-                                  .toList(),
-                              idealText: 'lower is better',
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: _Chart(
-                              title: 'Relevance Score',
-                              color: AppColors.accent,
-                              values: points.map((p) => p.relevance).toList(),
-                              idealText: 'higher is better',
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: _Chart(
-                              title: 'Latency',
-                              color: AppColors.warning,
-                              values: points.map((p) => p.latencyMs).toList(),
-                              idealText: 'milliseconds',
-                            ),
-                          ),
-                        ],
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: _Chart(
+                        title: 'Hallucination Rate',
+                        color: AppColors.danger,
+                        values: points.map((p) => p.hallucination).toList(),
+                        idealText: 'lower is better',
+                        threshold: 0.40,
+                        thresholdLabel: 'risk line',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _Chart(
+                        title: 'Relevance Score',
+                        color: AppColors.accent,
+                        values: points.map((p) => p.relevance).toList(),
+                        idealText: 'higher is better',
+                        threshold: 0.80,
+                        thresholdLabel: 'target',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _Chart(
+                        title: 'Latency',
+                        color: AppColors.warning,
+                        values: points.map((p) => p.latencyMs).toList(),
+                        idealText: 'milliseconds',
+                        isLatency: true,
+                        threshold: 3000,
+                        thresholdLabel: 'limit',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -165,7 +135,7 @@ class _MetricHint extends StatelessWidget {
       child: Text(
         points.isEmpty
             ? 'No saved metric snapshots yet. Run Agent Control to create chart data.'
-            : 'Showing ${points.length} saved support-agent snapshots. Flat hallucination/relevance lines mean the evaluator saved identical scores for those runs; latency still changes per run.',
+            : 'Showing ${points.length} saved snapshots. Each zero-cost seed adds more points without calling Gemini.',
         style: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,
@@ -182,12 +152,18 @@ class _Chart extends StatelessWidget {
     required this.color,
     required this.values,
     required this.idealText,
+    this.isLatency = false,
+    this.threshold,
+    this.thresholdLabel,
   });
 
   final String title;
   final Color color;
   final List<double> values;
   final String idealText;
+  final bool isLatency;
+  final double? threshold;
+  final String? thresholdLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -195,10 +171,22 @@ class _Chart extends StatelessWidget {
     final latest = values.isEmpty ? 0.0 : values.last;
     final isFlat =
         values.length > 1 && values.every((value) => value == values.first);
+    final maxValue = data.fold<double>(0, math.max);
+    final double maxY = isLatency
+        ? math
+              .max(
+                threshold ?? 0.0,
+                maxValue <= 0 ? 1000 : (maxValue * 1.18).ceilToDouble(),
+              )
+              .toDouble()
+        : 1.0;
+    final valueText = isLatency
+        ? '${latest.toStringAsFixed(0)}ms'
+        : latest.toStringAsFixed(2);
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -211,7 +199,7 @@ class _Chart extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${latest.toStringAsFixed(title == 'Latency' ? 0 : 2)} · $idealText',
+                  '$valueText · $idealText',
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
@@ -227,28 +215,74 @@ class _Chart extends StatelessWidget {
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
               ),
             ],
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Expanded(
               child: LineChart(
                 LineChartData(
+                  minY: 0,
+                  maxY: maxY,
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    getDrawingHorizontalLine: (_) =>
-                        const FlLine(color: AppColors.card),
+                    horizontalInterval: isLatency ? maxY / 3 : 0.25,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: AppColors.textSecondary.withValues(alpha: 0.14),
+                      strokeWidth: 1,
+                    ),
                   ),
                   borderData: FlBorderData(show: false),
-                  titlesData: const FlTitlesData(
-                    topTitles: AxisTitles(
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
-                    rightTitles: AxisTitles(
+                    rightTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
-                    bottomTitles: AxisTitles(
+                    bottomTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 42,
+                        interval: isLatency ? maxY / 3 : 0.25,
+                        getTitlesWidget: (value, meta) => Text(
+                          isLatency
+                              ? value.toStringAsFixed(0)
+                              : value.toStringAsFixed(2),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                  extraLinesData: threshold == null
+                      ? const ExtraLinesData()
+                      : ExtraLinesData(
+                          horizontalLines: [
+                            HorizontalLine(
+                              y: threshold!.clamp(0, maxY).toDouble(),
+                              color: AppColors.textSecondary.withValues(
+                                alpha: 0.35,
+                              ),
+                              strokeWidth: 1,
+                              dashArray: [6, 6],
+                              label: HorizontalLineLabel(
+                                show: true,
+                                alignment: Alignment.topRight,
+                                labelResolver: (_) => thresholdLabel ?? '',
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
                       getTooltipColor: (_) => AppColors.surface,
@@ -269,9 +303,19 @@ class _Chart extends StatelessWidget {
                           FlSpot(i.toDouble(), data[i]),
                       ],
                       color: color,
-                      barWidth: 3,
+                      barWidth: 3.5,
                       isCurved: true,
-                      dotData: const FlDotData(show: false),
+                      preventCurveOverShooting: true,
+                      dotData: FlDotData(
+                        show: data.length <= 12,
+                        getDotPainter: (spot, percent, bar, index) =>
+                            FlDotCirclePainter(
+                              radius: 3,
+                              color: color,
+                              strokeWidth: 2,
+                              strokeColor: Theme.of(context).cardColor,
+                            ),
+                      ),
                       belowBarData: BarAreaData(
                         show: true,
                         gradient: LinearGradient(

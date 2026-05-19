@@ -68,6 +68,10 @@ class ApiClient {
     return _postMap('/api/posts/reset', {});
   }
 
+  Future<Map<String, dynamic>> seedDemoData() {
+    return _postMap('/api/demo/seed', {});
+  }
+
   Future<String> getFaq() async {
     final data = await _getMap('/api/faq');
     return data['content']?.toString() ?? '';

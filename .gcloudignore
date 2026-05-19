@@ -7,8 +7,11 @@ __pycache__/
 reports/
 *.log
 .DS_Store
+.pytest_cache/
 
-# Include the production Flutter bundle so FastAPI can serve the UI at `/`.
-!dashboard/build/
-!dashboard/build/web/
-!dashboard/build/web/**
+# Flutter web deploys to GitHub Pages, not Cloud Run.
+# Keep Cloud Run uploads backend-only.
+dashboard/
+
+# Runtime/generated cache; recreated when needed.
+data/sec_cache/
