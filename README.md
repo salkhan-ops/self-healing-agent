@@ -2,7 +2,8 @@
 
 > **"They wake up in the morning, see this in Slack, and their AI already fixed itself overnight."**
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-4285F4?style=for-the-badge&logo=github)](https://salkhan-ops.github.io/self-healing-agent-landing/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-4285F4?style=for-the-badge&logo=github)](https://salkhan-ops.github.io/self-healing-agent/)
+[![API Backend](https://img.shields.io/badge/API-Cloud%20Run-4285F4?style=for-the-badge&logo=google-cloud)](https://self-healing-agent-274002881656.us-central1.run.app/health)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
 [![Built for](https://img.shields.io/badge/Built%20for-Google%20Cloud%20Rapid%20Agent%20Hackathon-orange?style=for-the-badge)](https://rapid-agent.devpost.com/)
 [![Powered by](https://img.shields.io/badge/Powered%20by-Gemini%202.5%20Flash-blue?style=for-the-badge)](https://ai.google.dev/)
@@ -11,9 +12,16 @@
 
 ## 🌐 Live Demo
 
-**[https://salkhan-ops.github.io/self-healing-agent-landing/](https://salkhan-ops.github.io/self-healing-agent-landing/)**
+**Flutter Dashboard:** [https://salkhan-ops.github.io/self-healing-agent/](https://salkhan-ops.github.io/self-healing-agent/)
 
-No setup required. Open in any browser. All three use cases are live.
+**API Backend:** [https://self-healing-agent-274002881656.us-central1.run.app/health](https://self-healing-agent-274002881656.us-central1.run.app/health)
+
+No setup required. Open in any browser. Social media post healing is fully live.
+
+> **Public Demo Note:** The live demo runs in public demo mode. The full
+> multi-agent healing loop is available once per session to control API costs.
+> Social media post generation and healing are fully functional.
+> See the demo video for the complete self-healing workflow.
 
 ---
 
@@ -21,7 +29,10 @@ No setup required. Open in any browser. All three use cases are live.
 
 AI agents fail silently in production.
 
-A customer support bot starts making up refund policies. A LinkedIn post generator invents revenue figures that never existed. An investment analyst cites a P/E ratio it fabricated. Nobody notices until a customer complains, a post goes viral for the wrong reason, or a regulator asks questions.
+A customer support bot starts making up refund policies. A LinkedIn post
+generator invents revenue figures that never existed. An investment analyst
+cites a P/E ratio it fabricated. Nobody notices until a customer complains,
+a post goes viral for the wrong reason, or a regulator asks questions.
 
 Most teams only find out when the damage is done.
 
@@ -29,7 +40,9 @@ Most teams only find out when the damage is done.
 
 ## 💡 The Solution
 
-**Self-Healing Agent** monitors your AI in production, detects failures automatically, rewrites the broken prompt, verifies the fix works, and sends you a report — all without human intervention.
+**Self-Healing Agent** monitors your AI in production, detects failures
+automatically, rewrites the broken prompt, verifies the fix works, and
+sends you a report — all without human intervention.
 
 ```
 AI makes mistake → Phoenix records it → Agent reads its own traces
@@ -55,36 +68,51 @@ AI makes mistake → Phoenix records it → Agent reads its own traces
 ## 🚀 Three Live Use Cases
 
 ### 💬 Customer Support
+
 An FAQ-grounded support agent that catches itself hallucinating and stops.
 
 **Before healing (Prompt v1):**
-> "I believe we may ship to Pakistan for free on qualifying orders."
-> *(Invented — not in the FAQ)*
+```
+"I believe we may ship to Pakistan for free on qualifying orders."
+(Invented — not in the FAQ)
+```
 
 **After healing (Prompt v2):**
-> "We currently ship only within the United States."
-> *(Grounded — directly from FAQ)*
+```
+"We currently ship only within the United States."
+(Grounded — directly from FAQ)
+```
 
 ---
 
 ### 📱 Social Media Post Safety
+
 A post generator that learns to stop inventing metrics before they go live.
 
 **Before healing (Prompt v1):**
-> "We crushed Q1 with 340% revenue growth! 🚀 Our revolutionary platform is disrupting the industry."
-> *(340% invented — not in the brief)*
+```
+"We crushed Q1 with 340% revenue growth! 🚀 Our revolutionary
+platform is disrupting the industry."
+(340% invented — not in the brief)
+```
 
 **After healing (Prompt v2):**
-> "Q1 was a strong quarter. We launched our new product and welcomed three new engineers."
-> *(Every word from the brief)*
+```
+"Q1 was a strong quarter. We launched our new product and
+welcomed three new engineers."
+(Every word from the brief)
+```
 
 ---
 
 ### 📈 Investment Research
+
 An SEC-grounded analyst that refuses to cite financial figures it cannot verify.
 
-Before healing it invents P/E ratios. After healing it says:
-> "I cannot confirm that figure without a verified SEC source."
+Before healing it invents P/E ratios. After healing:
+```
+"I cannot confirm that figure without a verified SEC source."
+```
 
 ---
 
@@ -92,13 +120,13 @@ Before healing it invents P/E ratios. After healing it says:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Flutter Web Dashboard                        │
+│         Flutter Web Dashboard (GitHub Pages — static)            │
 │  Dashboard │ Charts │ Reports │ Scheduler │ Agent Control        │
 │  Customer Support │ Social Media Posts │ Investment Analyst      │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ REST + WebSocket
 ┌──────────────────────────▼──────────────────────────────────────┐
-│                      FastAPI Backend                             │
+│              FastAPI Backend (Google Cloud Run)                   │
 │  /api/agent  /api/chat  /api/posts  /api/investment             │
 │  /api/metrics  /api/reports  /api/schedules  /ws                │
 └───────────┬────────────────────────────┬────────────────────────┘
@@ -128,19 +156,31 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full interactive Mermaid diagram.
 
 ## 🔗 Partner Integration — Arize Phoenix + MCP
 
-This project uses the **official Arize Phoenix MCP server** as its observability superpower.
+The Arize Phoenix MCP server is not just used for dashboards — it is
+the mechanism that makes self-healing possible.
 
-Every agent interaction is traced to Phoenix via OpenTelemetry. The self-healing loop then reads its own traces back at runtime using the Phoenix MCP server — giving the agent the ability to inspect its own behavior and improve without human review.
+Every agent interaction is traced to Phoenix via OpenTelemetry. The
+healing loop then reads those traces back at runtime using the official
+Phoenix MCP server, giving the agent the ability to query its own past
+behavior as a tool:
 
 ```python
 # The agent reads its own traces via Phoenix MCP
 result = subprocess.run([
     "npx", "@arizeai/phoenix-mcp@latest",
     "--baseUrl", PHOENIX_HOST
-], ...)
+], input=json.dumps({
+    "tool": "list-traces",
+    "params": {
+        "project_name": "self-healing-agent",
+        "limit": 10
+    }
+}), capture_output=True, text=True, timeout=30)
 ```
 
-This is the core of the Arize track requirement: **an agent that uses Phoenix MCP to query its own traces and self-improve at runtime.**
+This is what moves it beyond a monitoring dashboard into genuine
+autonomous self-improvement. The agent is not just observed — it uses
+its own observations to change its behavior at runtime.
 
 ---
 
@@ -150,8 +190,8 @@ This is the core of the Arize track requirement: **an agent that uses Phoenix MC
 Step 1  ANSWER    Agent answers 10 questions → traces sent to Phoenix
 Step 2  FETCH     Agent reads own traces via Phoenix MCP server
 Step 3  EVALUATE  Gemini scores each answer: hallucination + relevance
-Step 4  DIAGNOSE  Root cause identified: GUESSING / HALLUCINATION / IRRELEVANT
-Step 5  REWRITE   Gemini rewrites the system prompt to fix the root cause
+Step 4  DIAGNOSE  Root cause: GUESSING / HALLUCINATION / IRRELEVANT
+Step 5  REWRITE   Gemini rewrites the system prompt to fix root cause
 Step 6  VERIFY    Same questions run again → scores compared before/after
 Step 7  REPORT    Incident report saved + Slack notification sent
 ```
@@ -173,6 +213,58 @@ All 7 steps happen automatically. No human required.
 
 ---
 
+## 💰 Cost Controls for Public Demo
+
+This project includes several safeguards to keep public judging and demo
+costs predictable while preserving the real self-healing workflow.
+
+### 1. Static Flutter UI on GitHub Pages
+
+The Flutter web dashboard is deployed as static files to GitHub Pages.
+Cloud Run hosts only the FastAPI backend. This reduces Cloud Run upload
+size, avoids serving frontend assets from the backend container, and
+keeps the public UI inexpensive to host.
+
+### 2. Backend-only Cloud Run Deployments
+
+The Cloud Run upload is restricted with `.gcloudignore` so local Flutter
+build artifacts, macOS project files, virtual environments, reports, and
+generated caches are excluded from backend deploys. Backend upload
+dropped to ~90KB / 65 files. This keeps deployments fast and prevents
+large local files from being uploaded accidentally.
+
+### 3. Public Demo Mode
+
+The backend supports a configurable public demo mode:
+
+```bash
+PUBLIC_DEMO_MODE=true
+PUBLIC_DEMO_AGENT_RUN_LIMIT=1
+```
+
+In public demo mode:
+- The full multi-agent healing loop is limited to one run per session
+- The most expensive endpoints are rate-limited
+- Social media post healing remains fully available
+- The UI hides Agent Control run/stop buttons to prevent accidental
+  repeated triggering
+
+### 4. Tightened Post Scorer
+
+Unsupported hype phrases such as `EPIC`, `revolutionary`, `UNLEASHED`,
+and `MONUMENTAL` are caught by cheaper rule-based calibration before
+falling back to LLM judging. This reduces Gemini API calls for
+straightforward hallucination signals.
+
+### 5. Navigation and UX Stability
+
+- Dark mode is the default
+- A visible `Healing…` state prevents duplicate clicks
+- Clear cache and clear history controls are separated so judges can
+  reset state cleanly without triggering new API calls
+
+---
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
@@ -181,16 +273,17 @@ All 7 steps happen automatically. No human required.
 | Backend API | Python, FastAPI, Uvicorn, WebSockets |
 | Agent / AI | Gemini 2.5 Flash via google-generativeai |
 | Observability | Arize Phoenix, OpenTelemetry, Phoenix MCP server |
-| External Data | SEC EDGAR APIs (for investment use case) |
+| External Data | SEC EDGAR APIs (investment use case) |
 | Persistence | SQLite, SQLAlchemy async |
 | Scheduling | APScheduler |
-| Deployment | Google Cloud Run, Docker |
+| Deployment | Google Cloud Run (backend), GitHub Pages (frontend) |
 
 ---
 
 ## ⚡ Quick Start
 
 ### Prerequisites
+
 - Python 3.12
 - Node.js / npm (for Phoenix MCP)
 - Flutter (for dashboard UI)
@@ -222,6 +315,7 @@ PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
 HALLUCINATION_THRESHOLD=0.4
 RELEVANCE_THRESHOLD=0.6
 LATENCY_THRESHOLD_MS=3000
+PUBLIC_DEMO_MODE=false
 ```
 
 ### 3. Start Phoenix
@@ -230,7 +324,8 @@ LATENCY_THRESHOLD_MS=3000
 python -m phoenix.server.main serve
 ```
 
-Open [http://localhost:6006](http://localhost:6006) → Settings → API Keys → Create → paste key into `.env`
+Open [http://localhost:6006](http://localhost:6006) →
+Settings → API Keys → Create → paste key into `.env`
 
 ### 4. Run the agent (standalone)
 
@@ -272,7 +367,7 @@ docker run --env-file .env self-healing-agent
 
 ---
 
-## ☁️ Deploy to Google Cloud Run
+## ☁️ Deploy Backend to Google Cloud Run
 
 ```bash
 gcloud run deploy self-healing-agent \
@@ -282,23 +377,25 @@ gcloud run deploy self-healing-agent \
   --set-env-vars GOOGLE_API_KEY=your_key \
   --set-env-vars HALLUCINATION_THRESHOLD=0.4 \
   --set-env-vars RELEVANCE_THRESHOLD=0.6 \
-  --set-env-vars LATENCY_THRESHOLD_MS=3000
+  --set-env-vars LATENCY_THRESHOLD_MS=3000 \
+  --set-env-vars PUBLIC_DEMO_MODE=true \
+  --set-env-vars PUBLIC_DEMO_AGENT_RUN_LIMIT=1
 ```
 
-Build Flutter for production first:
+## 🌍 Deploy Flutter to GitHub Pages
 
 ```bash
 cd dashboard
 flutter build web --release \
   --dart-define=API_BASE_URL=https://your-cloud-run-url \
   --dart-define=WS_URL=wss://your-cloud-run-url/ws
+
+# Push dashboard/build/web contents to gh-pages branch
 ```
 
 ---
 
 ## 🧩 Embed in Any App
-
-Drop this into any HTML page or admin console:
 
 ```html
 <iframe
@@ -314,13 +411,44 @@ Shows live health score and latest incident report. Updates automatically.
 
 ---
 
+## 📄 Sample Healing Report
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-05-17 03:47:00
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Social Media Post Agent
+Problem: Hallucination rate above threshold (1.00)
+Root Cause: GUESSING — Agent inventing metrics
+            and superlatives not present in the brief
+Fix Applied: Added strict fact-grounding instruction.
+             Required fallback for unsupported claims.
+
+BEFORE:
+  Hallucination: 1.00
+  Relevance:     0.31
+  Latency:       2046ms
+
+AFTER:
+  Hallucination: 0.00  (-100%) ✅
+  Relevance:     0.87  (+181%) ✅
+  Latency:       1.9s          ✅
+
+Improvement: +94%
+Human Action Needed: NO ✅
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
 ## 🧪 Tests
 
 ```bash
 pytest
 ```
 
-All tests pass without Phoenix or Gemini keys configured — components fall back gracefully to local rules.
+All tests pass without Phoenix or Gemini keys configured — components
+fall back gracefully to local rules.
 
 ---
 
@@ -359,36 +487,6 @@ self-healing-agent/
 
 ---
 
-## 📄 Sample Healing Report
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 SELF-HEALING REPORT — 2026-05-17 03:47:00
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-App: Customer Support Agent
-Problem: Hallucination rate above threshold (0.72)
-Root Cause: GUESSING — Agent filling knowledge gaps
-            with invented details not in the FAQ
-Fix Applied: Added strict grounding instruction.
-             Required fallback for unsupported questions.
-
-BEFORE:
-  Hallucination: 0.72
-  Relevance:     0.31
-  Latency:       2046ms
-
-AFTER:
-  Hallucination: 0.04  (-94%)  ✅
-  Relevance:     0.87  (+181%) ✅
-  Latency:       1.9s          ✅
-
-Improvement: +89%
-Human Action Needed: NO ✅
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
 ## 🏆 Built For
 
 **Google Cloud Rapid Agent Hackathon** — Arize Track
@@ -399,6 +497,8 @@ Human Action Needed: NO ✅
 - ✅ Multi-step autonomous agent loop
 - ✅ Moves beyond chat — plans, acts, verifies, reports
 - ✅ Three real-world use cases
+- ✅ Cost-controlled public demo with GitHub Pages frontend
+- ✅ Apache 2.0 open source license
 
 ---
 
