@@ -7,12 +7,16 @@ APScheduler, and lets routes enable, disable, or remove scheduled runs.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import os
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
 
 from backend.database import AsyncSessionLocal, Schedule
 from backend.services.agent_runner import agent_runner
+
+
+PUBLIC_DEMO_MODE = os.getenv("PUBLIC_DEMO_MODE", "").lower() in {"1", "true", "yes", "on"}
 
 
 class SchedulerService:
@@ -46,13 +50,21 @@ class SchedulerService:
 
         if schedule.enabled:
             self.scheduler.add_job(
-                agent_runner.run_agent,
+                self._run_scheduled_agent,
                 trigger="interval",
                 minutes=schedule.interval_minutes,
                 id=job_id,
                 next_run_time=schedule.next_run or datetime.utcnow() + timedelta(minutes=schedule.interval_minutes),
                 replace_existing=True,
             )
+
+    async def _run_scheduled_agent(self) -> dict[str, object]:
+        """Run the agent from a schedule, unless public demo mode disables background spend."""
+        if PUBLIC_DEMO_MODE:
+            print("ℹ️ Public demo mode: scheduled self-healing run skipped.")
+            return {"status": "skipped", "reason": "public_demo_mode"}
+
+        return await agent_runner.run_agent()
 
     def remove_schedule(self, id: int) -> None:
         """Remove one schedule job from APScheduler."""

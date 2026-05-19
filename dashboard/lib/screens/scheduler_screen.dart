@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_config.dart';
 import '../core/theme.dart';
 import '../models/schedule.dart';
 import '../providers/scheduler_provider.dart';
@@ -55,14 +56,22 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
                 totalCount: schedules.length,
                 nextRun: nextRun,
                 totalRuns: totalRuns,
+                previewOnly: AppConfig.publicDemoMode,
               ),
+              if (AppConfig.publicDemoMode) ...[
+                const SizedBox(height: 12),
+                const _SchedulerDemoNotice(),
+              ],
               const SizedBox(height: 16),
               Expanded(
                 child: compact
                     ? ListView(
                         children: [
                           if (showCreatePanel) ...[
-                            const _ScheduleFormCard(),
+                            _ScheduleFormCard(
+                              onCreated: () =>
+                                  setState(() => showCreatePanel = false),
+                            ),
                             const SizedBox(height: 16),
                           ],
                           _ScheduleListCard(schedules: schedules),
@@ -80,9 +89,13 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
                             child: Column(
                               children: [
                                 if (showCreatePanel) ...[
-                                  const SizedBox(
-                                    height: 210,
-                                    child: _ScheduleFormCard(),
+                                  SizedBox(
+                                    height: 292,
+                                    child: _ScheduleFormCard(
+                                      onCreated: () => setState(
+                                        () => showCreatePanel = false,
+                                      ),
+                                    ),
                                   ),
                                   const SizedBox(height: 16),
                                 ],
@@ -180,12 +193,14 @@ class _SummaryRow extends StatelessWidget {
     required this.totalCount,
     required this.nextRun,
     required this.totalRuns,
+    required this.previewOnly,
   });
 
   final int activeCount;
   final int totalCount;
   final DateTime? nextRun;
   final int totalRuns;
+  final bool previewOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +234,11 @@ class _SummaryRow extends StatelessWidget {
               width: width,
               icon: Icons.repeat_rounded,
               label: 'Mode',
-              value: activeCount == 0 ? 'Manual' : 'Automatic',
+              value: previewOnly
+                  ? 'Preview'
+                  : activeCount == 0
+                  ? 'Manual'
+                  : 'Automatic',
               color: AppColors.accent,
             ),
             _SummaryCard(
@@ -232,6 +251,38 @@ class _SummaryRow extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _SchedulerDemoNotice extends StatelessWidget {
+  const _SchedulerDemoNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.24)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 20),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Public demo mode: scheduler planning is visible, but background scheduled runs are preview-only to prevent unexpected API cost. Turn PUBLIC_DEMO_MODE=false for production automation.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -326,7 +377,9 @@ class _ScheduleListCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Recurring runs use the same self-healing loop as Agent Control, scheduled at safe intervals.',
+              AppConfig.publicDemoMode
+                  ? 'Preview schedules without starting background agent runs in public demo mode.'
+                  : 'Recurring runs use the same self-healing loop as Agent Control, scheduled at safe intervals.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -678,7 +731,9 @@ class _UpcomingRunsCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Upcoming automation windows based on active intervals.',
+              AppConfig.publicDemoMode
+                  ? 'Preview windows only; public demo mode will not execute background runs.'
+                  : 'Upcoming automation windows based on active intervals.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -833,7 +888,9 @@ class _NoUpcomingRuns extends StatelessWidget {
 }
 
 class _ScheduleFormCard extends StatefulWidget {
-  const _ScheduleFormCard();
+  const _ScheduleFormCard({this.onCreated});
+
+  final VoidCallback? onCreated;
 
   @override
   State<_ScheduleFormCard> createState() => _ScheduleFormCardState();
@@ -843,12 +900,57 @@ class _ScheduleFormCardState extends State<_ScheduleFormCard> {
   final nameController = TextEditingController(text: 'Self-healing run');
   final intervalController = TextEditingController(text: '60');
   bool enabled = true;
+  bool isSaving = false;
 
   @override
   void dispose() {
     nameController.dispose();
     intervalController.dispose();
     super.dispose();
+  }
+
+  Future<void> _createSchedule() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = nameController.text.trim();
+    final interval = int.tryParse(intervalController.text.trim());
+
+    if (name.isEmpty || interval == null || interval < 1) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Enter a name and interval of at least 1 minute.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => isSaving = true);
+    try {
+      await context.read<SchedulerProvider>().createSchedule(
+        name,
+        interval,
+        enabled: enabled,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled
+                ? 'Schedule created and enabled.'
+                : 'Schedule created in paused mode.',
+          ),
+        ),
+      );
+      widget.onCreated?.call();
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not create schedule: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isSaving = false);
+      }
+    }
   }
 
   @override
@@ -897,29 +999,48 @@ class _ScheduleFormCardState extends State<_ScheduleFormCard> {
                       SizedBox(width: 180, child: fields[1]),
                     ],
                   ),
-                const SizedBox(height: 12),
-                Row(
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Expanded(
-                      child: SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: enabled,
-                        onChanged: (value) => setState(() => enabled = value),
-                        title: const Text('Enable immediately'),
+                    SizedBox(
+                      width: compact ? constraints.maxWidth : 300,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Enable immediately',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          Switch(
+                            value: enabled,
+                            onChanged: isSaving
+                                ? null
+                                : (value) => setState(() => enabled = value),
+                          ),
+                        ],
                       ),
                     ),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        final interval =
-                            int.tryParse(intervalController.text) ?? 60;
-                        await context.read<SchedulerProvider>().createSchedule(
-                          nameController.text,
-                          interval,
-                          enabled: enabled,
-                        );
-                      },
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Create'),
+                    SizedBox(
+                      width: compact ? constraints.maxWidth : 160,
+                      child: ElevatedButton.icon(
+                        onPressed: isSaving ? null : _createSchedule,
+                        icon: isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded),
+                        label: Text(isSaving ? 'Creating…' : 'Create'),
+                      ),
                     ),
                   ],
                 ),
