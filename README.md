@@ -16,12 +16,33 @@
 
 **API Backend:** [https://self-healing-agent-274002881656.us-central1.run.app/health](https://self-healing-agent-274002881656.us-central1.run.app/health)
 
-No setup required. Open in any browser. Social media post healing is fully live.
+No setup is required. Open the dashboard in any modern browser. Social media post healing is fully live.
 
-> **Public Demo Note:** The live demo runs in public demo mode. The full
-> multi-agent healing loop is available once per session to control API costs.
-> Social media post generation and healing are fully functional.
-> See the demo video for the complete self-healing workflow.
+> **Public Demo Note:** The live demo runs in public demo mode. The full multi-agent healing loop is limited in public mode to control API costs. Social media post generation and healing are fully functional. See the demo video for the complete self-healing workflow.
+
+---
+
+## 📚 Table of Contents
+
+- [The Problem](#-the-problem)
+- [The Solution](#-the-solution)
+- [What Makes It Different](#-what-makes-it-different)
+- [Three Live Use Cases](#-three-live-use-cases)
+- [Architecture](#️-architecture)
+- [Partner Integration — Arize Phoenix + MCP](#-partner-integration--arize-phoenix--mcp)
+- [The Self-Healing Loop](#-the-self-healing-loop-7-steps)
+- [Dashboard Features](#-dashboard-features)
+- [Cost Controls for Public Demo](#-cost-controls-for-public-demo)
+- [Tech Stack](#️-tech-stack)
+- [Quick Start](#-quick-start)
+- [Docker](#-docker)
+- [Deployment](#️-deploy-backend-to-google-cloud-run)
+- [Embed in Any App](#-embed-in-any-app)
+- [Sample Healing Report](#-sample-healing-report)
+- [Tests](#-tests)
+- [Project Structure](#-project-structure)
+- [Built For](#-built-for)
+- [License](#-license)
 
 ---
 
@@ -29,22 +50,19 @@ No setup required. Open in any browser. Social media post healing is fully live.
 
 AI agents fail silently in production.
 
-A customer support bot starts making up refund policies. A LinkedIn post
-generator invents revenue figures that never existed. An investment analyst
-cites a P/E ratio it fabricated. Nobody notices until a customer complains,
-a post goes viral for the wrong reason, or a regulator asks questions.
+A customer support bot starts making up refund policies. A LinkedIn post generator invents revenue figures that never existed. An investment analyst cites a P/E ratio it fabricated.
 
-Most teams only find out when the damage is done.
+Nobody notices until a customer complains, a post goes viral for the wrong reason, or a regulator asks questions.
+
+Most teams only find out when the damage is already done.
 
 ---
 
 ## 💡 The Solution
 
-**Self-Healing Agent** monitors your AI in production, detects failures
-automatically, rewrites the broken prompt, verifies the fix works, and
-sends you a report — all without human intervention.
+**Self-Healing Agent** monitors your AI in production, detects failures automatically, rewrites the broken prompt, verifies that the fix works, and sends you a report — all without human intervention.
 
-```
+```text
 AI makes mistake → Phoenix records it → Agent reads its own traces
 → Detects hallucination → Rewrites its own prompt
 → Verifies improvement → Sends Slack report
@@ -61,7 +79,7 @@ AI makes mistake → Phoenix records it → Agent reads its own traces
 | Human reviews traces manually | Agent reads its own traces via MCP |
 | Prompt updates require a deploy | Prompt updates happen at runtime |
 | One dashboard per tool | One loop works for any AI agent |
-| You need an engineer on call | Report says "Human Needed: NO ✅" |
+| You need an engineer on call | Report says **Human Needed: NO ✅** |
 
 ---
 
@@ -69,19 +87,23 @@ AI makes mistake → Phoenix records it → Agent reads its own traces
 
 ### 💬 Customer Support
 
-An FAQ-grounded support agent that catches itself hallucinating and stops.
+An FAQ-grounded support agent that catches itself hallucinating and learns to stop.
 
-**Before healing (Prompt v1):**
-```
+**Before healing — Prompt v1:**
+
+```text
 "I believe we may ship to Pakistan for free on qualifying orders."
-(Invented — not in the FAQ)
 ```
 
-**After healing (Prompt v2):**
-```
+Invented answer — not present in the FAQ.
+
+**After healing — Prompt v2:**
+
+```text
 "We currently ship only within the United States."
-(Grounded — directly from FAQ)
 ```
+
+Grounded answer — directly supported by the FAQ.
 
 ---
 
@@ -89,19 +111,23 @@ An FAQ-grounded support agent that catches itself hallucinating and stops.
 
 A post generator that learns to stop inventing metrics before they go live.
 
-**Before healing (Prompt v1):**
-```
+**Before healing — Prompt v1:**
+
+```text
 "We crushed Q1 with 340% revenue growth! 🚀 Our revolutionary
 platform is disrupting the industry."
-(340% invented — not in the brief)
 ```
 
-**After healing (Prompt v2):**
-```
+The `340%` claim was invented and did not appear in the brief.
+
+**After healing — Prompt v2:**
+
+```text
 "Q1 was a strong quarter. We launched our new product and
 welcomed three new engineers."
-(Every word from the brief)
 ```
+
+Every claim is grounded in the original brief.
 
 ---
 
@@ -109,8 +135,9 @@ welcomed three new engineers."
 
 An SEC-grounded analyst that refuses to cite financial figures it cannot verify.
 
-Before healing it invents P/E ratios. After healing:
-```
+Before healing, the agent invents P/E ratios. After healing, it responds safely:
+
+```text
 "I cannot confirm that figure without a verified SEC source."
 ```
 
@@ -118,7 +145,7 @@ Before healing it invents P/E ratios. After healing:
 
 ## 🏗️ Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │         Flutter Web Dashboard (GitHub Pages — static)            │
 │  Dashboard │ Charts │ Reports │ Scheduler │ Agent Control        │
@@ -126,9 +153,9 @@ Before healing it invents P/E ratios. After healing:
 └──────────────────────────┬──────────────────────────────────────┘
                            │ REST + WebSocket
 ┌──────────────────────────▼──────────────────────────────────────┐
-│              FastAPI Backend (Google Cloud Run)                   │
-│  /api/agent  /api/chat  /api/posts  /api/investment             │
-│  /api/metrics  /api/reports  /api/schedules  /ws                │
+│              FastAPI Backend (Google Cloud Run)                  │
+│  /api/agent  /api/chat  /api/posts  /api/investment              │
+│  /api/metrics  /api/reports  /api/schedules  /ws                 │
 └───────────┬────────────────────────────┬────────────────────────┘
             │                            │
 ┌───────────▼──────────┐    ┌────────────▼──────────────────────┐
@@ -136,14 +163,14 @@ Before healing it invents P/E ratios. After healing:
 │                       │    │                                    │
 │  TaskAgent            │    │  ChatAgent (Customer Support)      │
 │      ↓                │    │  PostAgent (Social Media)          │
-│  TraceReader ←── MCP ─┼────┼──→ Arize Phoenix                  │
+│  TraceReader ←── MCP ─┼────┼──→ Arize Phoenix                   │
 │      ↓                │    │  InvestmentAgent (SEC Research)    │
 │  Evaluator            │    │                                    │
 │      ↓                │    └────────────────────────────────────┘
 │  RootCauseAnalyzer    │
 │      ↓                │    ┌────────────────────────────────────┐
 │  PromptImprover ──────┼───▶│  Gemini 2.5 Flash                  │
-│      ↓                │    │  (answer / judge / rewrite)        │
+│      ↓                │    │  answer / judge / rewrite          │
 │  Verifier             │    └────────────────────────────────────┘
 │      ↓                │
 │  Reporter ────────────┼───▶  Slack + SQLite + reports/
@@ -156,13 +183,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full interactive Mermaid diagram.
 
 ## 🔗 Partner Integration — Arize Phoenix + MCP
 
-The Arize Phoenix MCP server is not just used for dashboards — it is
-the mechanism that makes self-healing possible.
+The Arize Phoenix MCP server is not just used for dashboards. It is the mechanism that makes self-healing possible.
 
-Every agent interaction is traced to Phoenix via OpenTelemetry. The
-healing loop then reads those traces back at runtime using the official
-Phoenix MCP server, giving the agent the ability to query its own past
-behavior as a tool:
+Every agent interaction is traced to Phoenix via OpenTelemetry. The healing loop then reads those traces back at runtime using the official Phoenix MCP server, giving the agent the ability to query its own past behavior as a tool.
 
 ```python
 # The agent reads its own traces via Phoenix MCP
@@ -178,15 +201,13 @@ result = subprocess.run([
 }), capture_output=True, text=True, timeout=30)
 ```
 
-This is what moves it beyond a monitoring dashboard into genuine
-autonomous self-improvement. The agent is not just observed — it uses
-its own observations to change its behavior at runtime.
+This moves the project beyond a monitoring dashboard into genuine autonomous self-improvement. The agent is not just observed — it uses its own observations to change its behavior at runtime.
 
 ---
 
-## 🧠 The Self-Healing Loop (7 Steps)
+## 🧠 The Self-Healing Loop — 7 Steps
 
-```
+```text
 Step 1  ANSWER    Agent answers 10 questions → traces sent to Phoenix
 Step 2  FETCH     Agent reads own traces via Phoenix MCP server
 Step 3  EVALUATE  Gemini scores each answer: hallucination + relevance
@@ -196,42 +217,36 @@ Step 6  VERIFY    Same questions run again → scores compared before/after
 Step 7  REPORT    Incident report saved + Slack notification sent
 ```
 
-All 7 steps happen automatically. No human required.
+All seven steps happen automatically. No human is required.
 
 ---
 
 ## 📊 Dashboard Features
 
-- **Live health score** (0–100) updated after every agent interaction
-- **Real-time charts** — hallucination, relevance, latency over hour/day/week/month/year
-- **Incident reports** — before/after comparison with root cause and fix description
-- **Scheduler** — run healing loops on a recurring schedule
-- **Agent Control** — trigger runs manually, watch live output stream
-- **Healing Journey Dialog** — animated step-by-step visualization of the healing process
-- **FAQ Editor** — edit the knowledge base from the dashboard
-- **Embeddable Widget** — paste one `<iframe>` tag into any app
+- **Live health score** from 0–100, updated after every agent interaction
+- **Real-time charts** for hallucination, relevance, and latency across hour/day/week/month/year views
+- **Incident reports** with before/after comparison, root cause, and fix description
+- **Scheduler** for recurring healing loops
+- **Agent Control** to trigger runs manually and watch the live output stream
+- **Healing Journey Dialog** with an animated step-by-step visualization of the healing process
+- **FAQ Editor** for updating the support knowledge base directly from the dashboard
+- **Embeddable Widget** that works with one `<iframe>` tag in any app
 
 ---
 
 ## 💰 Cost Controls for Public Demo
 
-This project includes several safeguards to keep public judging and demo
-costs predictable while preserving the real self-healing workflow.
+This project includes safeguards to keep public judging and demo costs predictable while preserving the real self-healing workflow.
 
 ### 1. Static Flutter UI on GitHub Pages
 
-The Flutter web dashboard is deployed as static files to GitHub Pages.
-Cloud Run hosts only the FastAPI backend. This reduces Cloud Run upload
-size, avoids serving frontend assets from the backend container, and
-keeps the public UI inexpensive to host.
+The Flutter web dashboard is deployed as static files to GitHub Pages. Cloud Run hosts only the FastAPI backend. This reduces Cloud Run upload size, avoids serving frontend assets from the backend container, and keeps the public UI inexpensive to host.
 
 ### 2. Backend-only Cloud Run Deployments
 
-The Cloud Run upload is restricted with `.gcloudignore` so local Flutter
-build artifacts, macOS project files, virtual environments, reports, and
-generated caches are excluded from backend deploys. Backend upload
-dropped to ~90KB / 65 files. This keeps deployments fast and prevents
-large local files from being uploaded accidentally.
+The Cloud Run upload is restricted with `.gcloudignore`, so local Flutter build artifacts, macOS project files, virtual environments, reports, and generated caches are excluded from backend deploys.
+
+Backend upload dropped to approximately `90KB / 65 files`. This keeps deployments fast and prevents large local files from being uploaded accidentally.
 
 ### 3. Public Demo Mode
 
@@ -239,11 +254,12 @@ The backend supports a configurable public demo mode:
 
 ```bash
 PUBLIC_DEMO_MODE=true
-PUBLIC_DEMO_AGENT_RUN_LIMIT=1
+PUBLIC_DEMO_AGENT_RUN_LIMIT=2
 ```
 
 In public demo mode:
-- The full multi-agent healing loop is limited to one run per browser/session
+
+- The full multi-agent healing loop is limited to two runs per browser/session
 - Backend in-memory limits provide a second safety net for public usage
 - Social media post healing remains fully available
 - The UI shows clear restriction messages instead of silently hiding the product
@@ -252,28 +268,19 @@ In public demo mode:
 
 The healing path uses a cheap-first strategy before spending on LLM calls:
 
-- **Policy memory / learned rules:** recurring failures create reusable rules such as
-  “do not use unsupported superlatives” or “do not give buy/sell advice.”
-- **Cached failure patterns:** repeated post or investment failures reuse the previous
-  prompt patch instead of diagnosing and rewriting from scratch.
-- **Cheap judge first:** deterministic scorers catch obvious pass/fail cases before
-  calling Gemini as judge.
-- **Prompt patches:** known failures append a small learned constraint instead of
-  asking Gemini to rewrite the entire system prompt.
-- **Batch repair:** one healing pass learns from recent failures and verifies a small
-  focused sample, so one repair can improve future examples.
+- **Policy memory / learned rules:** recurring failures create reusable rules such as “do not use unsupported superlatives” or “do not give buy/sell advice.”
+- **Cached failure patterns:** repeated post or investment failures reuse the previous prompt patch instead of diagnosing and rewriting from scratch.
+- **Cheap judge first:** deterministic scorers catch obvious pass/fail cases before calling Gemini as judge.
+- **Prompt patches:** known failures append a small learned constraint instead of asking Gemini to rewrite the entire system prompt.
+- **Batch repair:** one healing pass learns from recent failures and verifies a small focused sample, so one repair can improve future examples.
 
-Unsupported hype phrases such as `EPIC`, `revolutionary`, `UNLEASHED`,
-and `MONUMENTAL` are caught by cheaper rule-based calibration before
-falling back to LLM judging. This reduces Gemini API calls for
-straightforward hallucination signals.
+Unsupported hype phrases such as `EPIC`, `revolutionary`, `UNLEASHED`, and `MONUMENTAL` are caught by cheaper rule-based calibration before falling back to LLM judging. This reduces Gemini API calls for straightforward hallucination signals.
 
 ### 5. Navigation and UX Stability
 
 - Dark mode is the default
 - A visible `Healing…` state prevents duplicate clicks
-- Clear cache and clear history controls are separated so judges can
-  reset state cleanly without triggering new API calls
+- Clear cache and clear history controls are separated so judges can reset state cleanly without triggering new API calls
 
 ---
 
@@ -285,10 +292,10 @@ straightforward hallucination signals.
 | Backend API | Python, FastAPI, Uvicorn, WebSockets |
 | Agent / AI | Gemini 2.5 Flash via google-generativeai |
 | Observability | Arize Phoenix, OpenTelemetry, Phoenix MCP server |
-| External Data | SEC EDGAR APIs (investment use case) |
+| External Data | SEC EDGAR APIs for the investment use case |
 | Persistence | SQLite, SQLAlchemy async |
 | Scheduling | APScheduler |
-| Deployment | Google Cloud Run (backend), GitHub Pages (frontend) |
+| Deployment | Google Cloud Run backend, GitHub Pages frontend |
 
 ---
 
@@ -297,8 +304,8 @@ straightforward hallucination signals.
 ### Prerequisites
 
 - Python 3.12
-- Node.js / npm (for Phoenix MCP)
-- Flutter (for dashboard UI)
+- Node.js / npm for Phoenix MCP
+- Flutter for the dashboard UI
 - Google API key from [aistudio.google.com](https://aistudio.google.com)
 
 ### 1. Clone and install
@@ -336,16 +343,15 @@ PUBLIC_DEMO_MODE=false
 python -m phoenix.server.main serve
 ```
 
-Open [http://localhost:6006](http://localhost:6006) →
-Settings → API Keys → Create → paste key into `.env`
+Open [http://localhost:6006](http://localhost:6006), then go to **Settings → API Keys → Create** and paste the key into `.env`.
 
-### 4. Run the agent (standalone)
+### 4. Run the agent standalone
 
 ```bash
 python agent/main.py
 ```
 
-Watch the 7-step healing loop run in your terminal.
+Watch the seven-step healing loop run in your terminal.
 
 ### 5. Run the full dashboard
 
@@ -366,7 +372,7 @@ flutter run -d chrome --web-port 3000 \
   --dart-define=WS_URL=ws://localhost:8000/ws
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -391,8 +397,10 @@ gcloud run deploy self-healing-agent \
   --set-env-vars RELEVANCE_THRESHOLD=0.6 \
   --set-env-vars LATENCY_THRESHOLD_MS=3000 \
   --set-env-vars PUBLIC_DEMO_MODE=true \
-  --set-env-vars PUBLIC_DEMO_AGENT_RUN_LIMIT=1
+  --set-env-vars PUBLIC_DEMO_AGENT_RUN_LIMIT=2
 ```
+
+---
 
 ## 🌍 Deploy Flutter to GitHub Pages
 
@@ -402,7 +410,7 @@ flutter build web --release \
   --dart-define=API_BASE_URL=https://your-cloud-run-url \
   --dart-define=WS_URL=wss://your-cloud-run-url/ws
 
-# Push dashboard/build/web contents to gh-pages branch
+# Push dashboard/build/web contents to the gh-pages branch
 ```
 
 ---
@@ -419,13 +427,13 @@ flutter build web --release \
 </iframe>
 ```
 
-Shows live health score and latest incident report. Updates automatically.
+The widget shows the live health score and latest incident report. It updates automatically.
 
 ---
 
 ## 📄 Sample Healing Report
 
-```
+```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔧 SELF-HEALING REPORT — 2026-05-17 03:47:00
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -459,14 +467,13 @@ Human Action Needed: NO ✅
 pytest
 ```
 
-All tests pass without Phoenix or Gemini keys configured — components
-fall back gracefully to local rules.
+All tests pass without Phoenix or Gemini keys configured. Components fall back gracefully to local rules.
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 self-healing-agent/
 ├── agent/                  ← Core self-healing loop
 │   ├── main.py             ← Entry point
@@ -501,13 +508,13 @@ self-healing-agent/
 
 ## 🏆 Built For
 
-**Google Cloud Rapid Agent Hackathon** — Arize Track
+**Google Cloud Rapid Agent Hackathon — Arize Track**
 
 - ✅ Powered by Gemini 2.5 Flash
 - ✅ Deployed on Google Cloud Run
 - ✅ Arize Phoenix MCP integration
 - ✅ Multi-step autonomous agent loop
-- ✅ Moves beyond chat — plans, acts, verifies, reports
+- ✅ Moves beyond chat — plans, acts, verifies, and reports
 - ✅ Three real-world use cases
 - ✅ Cost-controlled public demo with GitHub Pages frontend
 - ✅ Apache 2.0 open source license
@@ -516,7 +523,7 @@ self-healing-agent/
 
 ## 📜 License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+Apache 2.0 — see [LICENSE](LICENSE).
 
 ---
 

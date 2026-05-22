@@ -53,27 +53,37 @@ class _SidebarState extends State<Sidebar> {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
       child: ListView(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.auto_fix_high, color: Colors.white),
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => context.go('/'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.auto_fix_high, color: Colors.white),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Self-Healing Agent',
+                      maxLines: 2,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Self-Healing Agent',
-                  maxLines: 2,
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 28),
           _SidebarItem(

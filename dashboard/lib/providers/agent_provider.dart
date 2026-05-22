@@ -22,14 +22,17 @@ class AgentProvider extends ChangeNotifier {
   List<String> liveOutput = [];
 
   static const _publicDemoRunUsedKey = 'public_demo_agent_control_used';
+  static const _publicDemoRunCountKey = 'public_demo_agent_control_run_count';
+  static const _publicDemoLocalRunLimit = 2;
 
   Future<Map<String, dynamic>> runNow() async {
     if (AppConfig.publicDemoMode &&
-        BrowserStorage.getBool(_publicDemoRunUsedKey)) {
+        _publicDemoRunsUsed() >= _publicDemoLocalRunLimit) {
       final result = {
         'run_id': '',
         'status': 'disabled',
-        'message': 'Public demo allows one full Agent Control run per browser.',
+        'message':
+            'Public demo allows $_publicDemoLocalRunLimit full Agent Control runs per browser.',
       };
       liveOutput.add(result['message']!);
       notifyListeners();
@@ -48,12 +51,24 @@ class AgentProvider extends ChangeNotifier {
       isRunning = true;
       liveOutput.add('Agent run started: ${result['run_id'] ?? ''}');
       if (AppConfig.publicDemoMode && result['status'] == 'started') {
+        BrowserStorage.setInt(
+          _publicDemoRunCountKey,
+          _publicDemoRunsUsed() + 1,
+        );
         BrowserStorage.setBool(_publicDemoRunUsedKey, true);
       }
       await loadStatus();
       notifyListeners();
     }
     return result;
+  }
+
+  int _publicDemoRunsUsed() {
+    final count = BrowserStorage.getInt(_publicDemoRunCountKey);
+    if (count > 0) {
+      return count;
+    }
+    return BrowserStorage.getBool(_publicDemoRunUsedKey) ? 1 : 0;
   }
 
   Future<Map<String, dynamic>> stopNow() async {

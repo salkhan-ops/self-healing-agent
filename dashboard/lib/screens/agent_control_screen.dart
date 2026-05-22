@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/app_config.dart';
 import '../core/theme.dart';
 import '../providers/agent_provider.dart';
 
@@ -86,6 +87,13 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                           onPressed: agent.isRunning
                               ? null
                               : () async {
+                                  final shouldRun = await _confirmFullLoopRun(
+                                    context,
+                                  );
+                                  if (!shouldRun || !context.mounted) {
+                                    return;
+                                  }
+
                                   final messenger = ScaffoldMessenger.of(
                                     context,
                                   );
@@ -139,6 +147,10 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                     ),
                     const SizedBox(height: 12),
                     _StatusBadge(label: statusLabel, running: agent.isRunning),
+                    if (AppConfig.publicDemoMode) ...[
+                      const SizedBox(height: 12),
+                      const _PublicDemoAgentNotice(),
+                    ],
                   ],
                 ),
               ),
@@ -149,6 +161,35 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
         );
       },
     );
+  }
+
+  Future<bool> _confirmFullLoopRun(BuildContext context) async {
+    if (!AppConfig.publicDemoMode) {
+      return true;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Run full self-healing loop?'),
+        content: const Text(
+          'This starts the full multi-agent loop: chat, posts, investment, evaluation, prompt healing, and verification. It may take 1–2 minutes and is limited in the public demo to control API cost.\n\nUse one demo run now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: const Text('Run full loop'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed == true;
   }
 
   Widget _thresholds() => _Thresholds(
@@ -231,6 +272,46 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                   color: lastError == null || lastError.isEmpty
                       ? AppColors.textSecondary
                       : AppColors.danger,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PublicDemoAgentNotice extends StatelessWidget {
+  const _PublicDemoAgentNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.info_outline_rounded,
+              color: AppColors.warning,
+              size: 18,
+            ),
+            SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Public demo mode: full loop is limited. Use feature tabs for lightweight testing.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
                 ),
               ),
             ),

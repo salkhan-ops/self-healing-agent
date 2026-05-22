@@ -13,55 +13,6 @@ source venv/bin/activate
 
 
 
-
-cd /Users/salmankhan/StudioProjects/self-healing-agent/dashboard
-
-flutter build web --release \
-  --dart-define=API_BASE_URL=https://self-healing-agent-274002881656.us-central1.run.app \
-  --dart-define=WS_URL=wss://self-healing-agent-274002881656.us-central1.run.app/ws
-
-
-  cd /Users/salmankhan/StudioProjects/self-healing-agent
-
-gcloud run deploy self-healing-agent \
-  --source . \
-  --region us-central1 \
-  --port=8080 \
-  --allow-unauthenticated \
-  --clear-base-image
-
-  open https://salkhan-ops.github.io/self-healing-agent-landing
-
-
-
-
-
-cd /Users/salmankhan/StudioProjects/self-healing-agent
-
-API_BASE_URL="https://self-healing-agent-274002881656.us-central1.run.app" \
-./scripts/deploy_flutter_web_to_pages.sh
-
-cd /Users/salmankhan/StudioProjects/self-healing-agent-landing
-git status
-git add .
-git commit -m "Deploy Flutter web UI"
-git push
-----------------------------------------
-
-gcloud run deploy self-healing-agent \
-  --source . \
-  --region us-central1 \
-  --port=8080 \
-  --allow-unauthenticated \
-  --clear-base-image
-API_BASE_URL="https://self-healing-agent-274002881656.us-central1.run.app" \
-./scripts/deploy_flutter_web_to_pages.sh
-git status
-git add .
-git commit -m "Deploy Flutter web UI"
-git push
-
-
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 
 gcloud run deploy self-healing-agent \
@@ -70,7 +21,7 @@ gcloud run deploy self-healing-agent \
   --port=8080 \
   --allow-unauthenticated \
   --clear-base-image \
-  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=1
+  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=2
 
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 PUBLIC_DEMO_MODE=true \

@@ -8,4 +8,12 @@ class BrowserStorage {
   static void setBool(String key, bool value) {
     html.window.localStorage[key] = value.toString();
   }
+
+  static int getInt(String key) {
+    return int.tryParse(html.window.localStorage[key] ?? '') ?? 0;
+  }
+
+  static void setInt(String key, int value) {
+    html.window.localStorage[key] = value.toString();
+  }
 }

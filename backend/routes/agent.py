@@ -16,7 +16,7 @@ from backend.services.agent_runner import agent_runner
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 PUBLIC_DEMO_MODE = os.getenv("PUBLIC_DEMO_MODE", "").lower() in {"1", "true", "yes", "on"}
-PUBLIC_DEMO_AGENT_RUN_LIMIT = int(os.getenv("PUBLIC_DEMO_AGENT_RUN_LIMIT", "1"))
+PUBLIC_DEMO_AGENT_RUN_LIMIT = int(os.getenv("PUBLIC_DEMO_AGENT_RUN_LIMIT", "2"))
 _public_demo_runs_started = 0
 
 
@@ -29,7 +29,7 @@ async def run_agent_now(background_tasks: BackgroundTasks) -> dict[str, str]:
         return {
             "run_id": "",
             "status": "disabled",
-            "message": "Public demo limit reached. Full Agent Control can be run once in this demo.",
+            "message": "Public demo limit reached. Full Agent Control has reached the public demo limit.",
         }
 
     if agent_runner.status == "running":
