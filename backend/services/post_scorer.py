@@ -11,6 +11,8 @@ import json
 import os
 import re
 
+from config.llm import llm_generate_content
+
 INVENTION_PHRASES = [
     "%",
     "x growth",
@@ -101,7 +103,7 @@ Return ONLY valid JSON, no other text:
 {{"hallucination_score": 0.0, "relevance_score": 0.0}}
 """.strip()
 
-        response = judge.generate_content(prompt)
+        response = llm_generate_content(judge, prompt, label="post_scorer.score")
         text = getattr(response, "text", "").strip()
         text = re.sub(r"^```(?:json)?", "", text).strip()
         text = re.sub(r"```$", "", text).strip()

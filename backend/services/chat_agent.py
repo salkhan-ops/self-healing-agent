@@ -46,6 +46,7 @@ MODEL_NAME = "gemini-2.5-flash"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FAQ_PATH = PROJECT_ROOT / "data" / "faq.txt"
 from config.phoenix_tracing import configure_phoenix_tracing
+from config.llm import llm_generate_content
 
 
 class ChatAgent:
@@ -117,7 +118,7 @@ CUSTOMER MESSAGE:
 
 Answer the customer in a friendly support tone.
 """.strip()
-            response = temp_model.generate_content(prompt)
+            response = llm_generate_content(temp_model, prompt, label="chat_agent.answer_with_prompt")
             return getattr(response, "text", "").strip() or self._faq_fallback_answer(
                 user_message
             )
@@ -163,7 +164,7 @@ CUSTOMER MESSAGE:
 
 Answer the customer in a friendly support tone.
 """.strip()
-        response = self.model.generate_content(prompt)
+        response = llm_generate_content(self.model, prompt, label="chat_agent.answer")
         text = getattr(response, "text", "").strip()
         return text or self._faq_fallback_answer(user_message)
 

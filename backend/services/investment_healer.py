@@ -16,6 +16,7 @@ except ImportError:
     genai = None
 
 from config.settings import GOOGLE_API_KEY
+from config.llm import llm_generate_content
 from backend.services.investment_agent import investment_agent
 from backend.services.investment_history_store import list_investment_entries
 from backend.services.learning_memory import learning_memory
@@ -87,7 +88,8 @@ Choose the dominant failure category from:
 Return ONLY JSON:
 {{"category": "UNSUPPORTED_SPECULATION", "explanation": "Short trace-grounded explanation."}}
 """.strip()
-        parsed = self._parse_json(getattr(model.generate_content(prompt), "text", ""))
+        response = llm_generate_content(model, prompt, label="investment_healer.analyze")
+        parsed = self._parse_json(getattr(response, "text", ""))
         category = str(parsed.get("category") or "OTHER").strip().upper()
         explanation = str(parsed.get("explanation") or "").strip()
         return category, explanation or "Answers violated SEC-grounding or investment-safety constraints."
@@ -155,7 +157,12 @@ Requirements:
 - It must be concise and production-ready.
 - Return ONLY the new system prompt text.
 """.strip()
-        return getattr(model.generate_content(prompt), "text", "").strip()
+        response = llm_generate_content(
+            model,
+            prompt,
+            label="investment_healer.rewrite_prompt",
+        )
+        return getattr(response, "text", "").strip()
 
     def _patch_for_category(self, category: str) -> str:
         patches = {

@@ -7,16 +7,13 @@ APScheduler, and lets routes enable, disable, or remove scheduled runs.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import os
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
 
 from backend.database import AsyncSessionLocal, Schedule
 from backend.services.agent_runner import agent_runner
-
-
-PUBLIC_DEMO_MODE = os.getenv("PUBLIC_DEMO_MODE", "").lower() in {"1", "true", "yes", "on"}
+from config.settings import PUBLIC_DEMO_MODE
 
 
 class SchedulerService:
@@ -27,6 +24,10 @@ class SchedulerService:
 
     async def start(self) -> None:
         """Start APScheduler and load enabled schedules from the database."""
+        if PUBLIC_DEMO_MODE:
+            print("ℹ️ Public demo mode: scheduler disabled to prevent background API cost.")
+            return
+
         if not self.scheduler.running:
             self.scheduler.start()
         await self.load_schedules()

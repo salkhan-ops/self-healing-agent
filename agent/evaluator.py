@@ -31,6 +31,7 @@ from config.settings import (
     RELEVANCE_THRESHOLD,
     USE_GEMINI_META,
 )
+from config.llm import llm_generate_content
 from agent.usage import usage_tracker
 
 
@@ -149,7 +150,7 @@ Return only a JSON array with one object per trace, in the same order:
 Hallucination score means unsupported or false content, from 0.0 to 1.0.
 Relevance score means how directly the answer addresses the question, from 0.0 to 1.0.
 """.strip()
-        response = self.model.generate_content(prompt)
+        response = llm_generate_content(self.model, prompt, label="evaluator.score_batch")
         usage_tracker.record(response)
         parsed = self._parse_json(getattr(response, "text", ""))
         if not isinstance(parsed, list) or len(parsed) != len(traces):

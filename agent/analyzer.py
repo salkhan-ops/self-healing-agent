@@ -23,6 +23,7 @@ except ImportError as exc:
     ) from exc
 
 from config.settings import GEMINI_MODEL_NAME, GOOGLE_API_KEY, USE_GEMINI_META
+from config.llm import llm_generate_content
 from agent.usage import usage_tracker
 
 
@@ -101,7 +102,7 @@ Choose exactly one category:
 Return only JSON:
 {{"category": "GUESSING", "explanation": "Short plain English explanation."}}
 """.strip()
-        response = self.model.generate_content(prompt)
+        response = llm_generate_content(self.model, prompt, label="root_cause.analyze")
         usage_tracker.record(response)
         parsed = self._parse_json(getattr(response, "text", ""))
         category = self._clean_category(parsed.get("category"))

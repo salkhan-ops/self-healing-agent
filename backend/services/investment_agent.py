@@ -36,6 +36,7 @@ load_dotenv()
 
 MODEL_NAME = "gemini-2.5-flash"
 from config.phoenix_tracing import configure_phoenix_tracing
+from config.llm import llm_generate_content
 WEAK_INVESTMENT_PROMPT = """
 You are an investment research assistant.
 Help users understand companies and stocks.
@@ -187,7 +188,7 @@ class InvestmentAgent:
             return self._fallback_answer(message, ticker, sec_context)
 
         prompt = self._build_generation_prompt(message, ticker, sec_context)
-        response = self.model.generate_content(prompt, request_options={"timeout": 20})
+        response = llm_generate_content(self.model, prompt, label="investment_agent.answer")
         text = getattr(response, "text", "").strip()
         return text or self._fallback_answer(message, ticker, sec_context)
 
@@ -211,7 +212,7 @@ class InvestmentAgent:
                 system_instruction=system_prompt,
             )
             prompt = self._build_generation_prompt(message, ticker, sec_context)
-            response = temp_model.generate_content(prompt, request_options={"timeout": 20})
+            response = llm_generate_content(temp_model, prompt, label="investment_agent.answer_with_prompt")
             text = getattr(response, "text", "").strip()
             sources = sec_context.get("source_urls", [])
             return self._enforce_safety(

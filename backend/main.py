@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from backend.database import AsyncSessionLocal, MetricSnapshot, Report, init_db
-from backend.routes import agent, chat, demo, faq, metrics, reports, scheduler
+from backend.routes import agent, chat, faq, metrics, reports, scheduler
 from backend.routes.investment import router as investment_router
 from backend.routes.posts import router as posts_router
 from backend.services.agent_runner import websocket_manager
@@ -66,7 +66,6 @@ app.include_router(scheduler.router)
 app.include_router(agent.router)
 app.include_router(faq.router)
 app.include_router(chat.router, prefix="")
-app.include_router(demo.router)
 app.include_router(investment_router)
 app.include_router(posts_router)
 

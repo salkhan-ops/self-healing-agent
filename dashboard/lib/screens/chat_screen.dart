@@ -37,8 +37,6 @@ class ChatScreen extends StatefulWidget {
 
   static void clearCachedState() => _ChatScreenState.clearCachedState();
 
-  static void seedDemoState() => _ChatScreenState.seedDemoState();
-
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -60,69 +58,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _savedSelfHealingActive = true;
     _savedHealingComparisons = [];
     _savedHealingJourneyMeta = {};
-  }
-
-  static void seedDemoState() {
-    _savedMessages
-      ..clear()
-      ..addAll([
-        {
-          'role': 'user',
-          'content': 'Do you ship to Pakistan for free?',
-          'timestamp': DateTime.now().subtract(const Duration(minutes: 8)),
-        },
-        {
-          'role': 'agent',
-          'content':
-              'Yes — we offer free worldwide shipping, including Pakistan, for loyal customers.',
-          'question': 'Do you ship to Pakistan for free?',
-          'timestamp': DateTime.now().subtract(const Duration(minutes: 8)),
-          'latency_ms': 1952,
-          'trace_id': 'demo001',
-          'prompt_version': 1,
-        },
-        {
-          'role': 'user',
-          'content': 'Do you ship to Pakistan for free?',
-          'timestamp': DateTime.now().subtract(const Duration(minutes: 6)),
-        },
-        {
-          'role': 'agent',
-          'content':
-              'We currently ship only within the United States. International shipping is not available at this time.',
-          'question': 'Do you ship to Pakistan for free?',
-          'timestamp': DateTime.now().subtract(const Duration(minutes: 6)),
-          'latency_ms': 1473,
-          'trace_id': 'demo002',
-          'prompt_version': 2,
-        },
-      ]);
-    _savedSessionId = 'demo-session';
-    _savedPromptVersion = 2;
-    _savedHallucinationRate = 0.0;
-    _savedSelfHealingActive = true;
-    _savedHealingComparisons = [
-      {
-        'question': 'Do you ship to Pakistan for free?',
-        'before':
-            'Yes — we offer free worldwide shipping, including Pakistan, for loyal customers.',
-        'after':
-            'We currently ship only within the United States. International shipping is not available at this time.',
-        'changed': true,
-      },
-    ];
-    _savedHealingJourneyMeta = {
-      'root_cause': 'KNOWLEDGE_GAP',
-      'root_cause_explanation':
-          'The agent answered beyond the support knowledge base.',
-      'before_hallucination': 0.74,
-      'after_hallucination': 0.06,
-      'before_relevance': 0.38,
-      'after_relevance': 0.96,
-      'old_prompt': 'Answer support questions conversationally.',
-      'new_prompt':
-          'Use only verified knowledge-base facts. If unsupported, say you do not know based on the available policy.',
-    };
   }
 
   late List<Map<String, dynamic>> messages;

@@ -22,7 +22,7 @@ from agent.reporter import Reporter
 from agent.task_agent import TaskAgent
 from agent.trace_reader import TraceReader
 from agent.verifier import Verifier
-from config.settings import DEFAULT_SYSTEM_PROMPT
+from config.settings import AGENT_RUN_TIMEOUT_SECONDS, DEFAULT_SYSTEM_PROMPT, MAX_AGENT_ITERATIONS
 from backend.services.metrics_store import MetricsStore
 
 
@@ -95,7 +95,10 @@ class AgentRunner:
 
             try:
                 await self._broadcast(f"run:{run_id}:started")
-                result = await asyncio.to_thread(self._run_agent_sync, run_id)
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(self._run_agent_sync, run_id),
+                    timeout=AGENT_RUN_TIMEOUT_SECONDS,
+                )
                 if result.get("status") == "stopped":
                     self.status = "idle"
                     await self._broadcast(f"run:{run_id}:stopped")
@@ -111,6 +114,13 @@ class AgentRunner:
                 self.last_error = None
                 await self._broadcast(f"run:{run_id}:stopped")
                 return {"run_id": run_id, "status": "stopped"}
+            except TimeoutError:
+                self.stop_requested = True
+                self.status = "error"
+                self.last_error = f"Agent run timed out after {AGENT_RUN_TIMEOUT_SECONDS}s"
+                print(f"⏱️ Agent run timed out: run_id={run_id} timeout_s={AGENT_RUN_TIMEOUT_SECONDS}")
+                await self._broadcast(f"run:{run_id}:error:{self.last_error}")
+                return {"run_id": run_id, "status": "error", "error": self.last_error}
             except Exception as exc:
                 self.status = "error"
                 self.last_error = str(exc)
@@ -150,7 +160,7 @@ class AgentRunner:
     def _run_agent_sync(self, run_id: str) -> dict[str, Any]:
         """Execute the existing self-healing loop with reusable agent classes."""
         faq_path = PROJECT_ROOT / "data" / "faq.txt"
-        questions = self._load_questions(faq_path)[:10]
+        questions = self._load_questions(faq_path)[: max(1, MAX_AGENT_ITERATIONS)]
         agent = TaskAgent(faq_path=faq_path)
 
         self._check_stop()

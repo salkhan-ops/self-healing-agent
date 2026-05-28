@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from config.llm import llm_generate_content
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FAQ_PATH = PROJECT_ROOT / "data" / "faq.txt"
 
@@ -111,7 +113,7 @@ Return ONLY valid JSON, no other text:
 {{"hallucination_score": 0.0, "relevance_score": 0.0}}
 """.strip()
 
-        response = judge.generate_content(prompt)
+        response = llm_generate_content(judge, prompt, label="chat_scorer.score")
         text = getattr(response, "text", "").strip()
         text = re.sub(r"^```(?:json)?", "", text).strip()
         text = re.sub(r"```$", "", text).strip()

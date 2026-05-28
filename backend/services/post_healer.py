@@ -16,6 +16,7 @@ except ImportError:
     genai = None
 
 from config.settings import GOOGLE_API_KEY
+from config.llm import llm_generate_content
 from backend.services.learning_memory import learning_memory
 from backend.services.post_agent import post_agent
 from backend.services.post_history_store import list_posts
@@ -101,7 +102,7 @@ Choose the dominant failure category from:
 Return ONLY JSON:
 {{"category": "INVENTED_METRICS", "explanation": "Short explanation grounded in the traces."}}
 """.strip()
-        response = model.generate_content(prompt)
+        response = llm_generate_content(model, prompt, label="post_healer.analyze")
         parsed = self._parse_json(getattr(response, "text", ""))
         category = str(parsed.get("category") or "OTHER").strip().upper()
         explanation = str(parsed.get("explanation") or "").strip()
@@ -179,7 +180,7 @@ Requirements for the new system prompt:
 - It must be concise, production-ready, and written as direct instructions to the model.
 - Return ONLY the new system prompt text.
 """.strip()
-        response = model.generate_content(prompt)
+        response = llm_generate_content(model, prompt, label="post_healer.rewrite_prompt")
         return getattr(response, "text", "").strip()
 
     def _patch_for_category(self, category: str) -> str:

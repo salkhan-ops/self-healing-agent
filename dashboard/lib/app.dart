@@ -169,7 +169,6 @@ class _SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<_SettingsScreen> {
   bool _isClearingRecentPosts = false;
-  bool _isSeedingDemoData = false;
 
   @override
   Widget build(BuildContext context) {
@@ -192,75 +191,6 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Zero-cost Demo Data',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Seeds charts, reports, recent posts, and local before/after examples without calling Gemini or running the healing loop.',
-                    ),
-                    const SizedBox(height: 14),
-                    FilledButton.icon(
-                      onPressed: _isSeedingDemoData
-                          ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              setState(() => _isSeedingDemoData = true);
-                              try {
-                                final apiClient = ApiClient();
-                                late final Map<String, dynamic> result;
-                                try {
-                                  result = await apiClient.seedDemoData();
-                                } finally {
-                                  apiClient.close();
-                                }
-                                if (!mounted) return;
-                                final failed = result['error'] == true;
-                                if (!failed) {
-                                  ChatScreen.seedDemoState();
-                                  InvestmentScreen.seedDemoState();
-                                }
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      failed
-                                          ? 'Could not seed demo data.'
-                                          : 'Demo data seeded. Visit Chat, Posts, Investment, Charts, and Reports.',
-                                    ),
-                                  ),
-                                );
-                              } finally {
-                                if (mounted) {
-                                  setState(() => _isSeedingDemoData = false);
-                                }
-                              }
-                            },
-                      icon: _isSeedingDemoData
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.auto_awesome_rounded),
-                      label: Text(
-                        _isSeedingDemoData
-                            ? 'Seeding…'
-                            : 'Seed zero-cost demo data',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),

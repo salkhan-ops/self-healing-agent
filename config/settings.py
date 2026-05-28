@@ -60,6 +60,15 @@ APP_ENV = os.getenv("APP_ENV", "local")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "")
 
+PUBLIC_DEMO_MODE = _get_bool_env("PUBLIC_DEMO_MODE", False)
+PUBLIC_DEMO_AGENT_RUN_LIMIT = _get_int_env("PUBLIC_DEMO_AGENT_RUN_LIMIT", 2)
+PUBLIC_DEMO_HEALING_RUN_LIMIT = _get_int_env("PUBLIC_DEMO_HEALING_RUN_LIMIT", 2)
+MAX_AGENT_ITERATIONS = _get_int_env("MAX_AGENT_ITERATIONS", 10)
+MAX_LLM_RETRIES = _get_int_env("MAX_LLM_RETRIES", 1)
+AGENT_RUN_TIMEOUT_SECONDS = _get_int_env("AGENT_RUN_TIMEOUT_SECONDS", 60)
+LLM_TIMEOUT_SECONDS = _get_int_env("LLM_TIMEOUT_SECONDS", 30)
+MAX_OUTPUT_TOKENS = _get_int_env("MAX_OUTPUT_TOKENS", 1024)
+
 AGENT_MODE = os.getenv("AGENT_MODE", "cheap").strip().lower()
 if AGENT_MODE not in {"cheap", "full", "local"}:
     print(f"⚠️ Invalid AGENT_MODE={AGENT_MODE!r}; using 'cheap'.")

@@ -27,6 +27,7 @@ from config.settings import (
     DEFAULT_SYSTEM_PROMPT,
     HALLUCINATION_THRESHOLD,
     LATENCY_THRESHOLD_MS,
+    MAX_AGENT_ITERATIONS,
     PHOENIX_HOST,
     RELEVANCE_THRESHOLD,
     GEMINI_MODEL_NAME,
@@ -49,12 +50,12 @@ def main() -> None:
         f"🔌 Connecting to Phoenix at {PHOENIX_HOST}... {phoenix_status()}"
     )
 
-    round_questions = questions[:10]
+    round_questions = questions[: max(1, MAX_AGENT_ITERATIONS)]
     agent = TaskAgent(faq_path=PROJECT_ROOT / "data" / "faq.txt")
 
     print()
     print(SEPARATOR)
-    print("ROUND 1 — Answering 10 Questions")
+    print(f"ROUND 1 — Answering {len(round_questions)} Questions")
     print(SEPARATOR)
     round_one_traces = run_question_round(agent, round_questions)
     print("All traces sent to Phoenix ✅")

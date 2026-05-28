@@ -135,7 +135,7 @@ class _MetricHint extends StatelessWidget {
       child: Text(
         points.isEmpty
             ? 'No saved metric snapshots yet. Run Agent Control to create chart data.'
-            : 'Showing ${points.length} saved snapshots. Each zero-cost seed adds more points without calling Gemini.',
+            : 'Showing ${points.length} saved metric snapshots from backend runs.',
         style: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,

@@ -11,18 +11,25 @@ import uuid as uuid_module
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.services.agent_runner import websocket_manager
+from backend.services.cost_controls import InMemoryDemoLimiter, demo_client_key
 from backend.services.metrics_store import MetricsStore
 from backend.services.post_agent import post_agent
 from backend.services.post_healer import post_healer
 from backend.services.post_history_store import add_post, clear_posts, list_posts
 from backend.services.post_scorer import post_scorer
+from config.settings import AGENT_RUN_TIMEOUT_SECONDS, PUBLIC_DEMO_HEALING_RUN_LIMIT, PUBLIC_DEMO_MODE
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 _metrics_store = MetricsStore()
+_healing_limiter = InMemoryDemoLimiter(
+    name="post_healing",
+    limit=PUBLIC_DEMO_HEALING_RUN_LIMIT,
+)
+_healing_lock = asyncio.Lock()
 
 class PostRequest(BaseModel):
     brief: str = Field(min_length=1)
@@ -136,10 +143,29 @@ async def reset_post_agent() -> dict:
 
 
 @router.post("/heal")
-async def heal_post_agent() -> dict:
+async def heal_post_agent(request: Request) -> dict:
     """Run the dedicated post-agent healer without waiting for the full cross-agent loop."""
+    if PUBLIC_DEMO_MODE:
+        allowed, remaining = _healing_limiter.check_and_increment(demo_client_key(request))
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Public demo healing limit reached. Social post healing has reached the public demo limit.",
+            )
+        print(f"💸 Public demo post healing allowed; remaining_for_client={remaining}")
+
+    if _healing_lock.locked():
+        raise HTTPException(
+            status_code=409,
+            detail="Social post healing is already running. Please wait for the current healing pass to finish.",
+        )
+
     try:
-        healing = await asyncio.to_thread(post_healer.heal_recent_posts)
+        async with _healing_lock:
+            healing = await asyncio.wait_for(
+                asyncio.to_thread(post_healer.heal_recent_posts),
+                timeout=AGENT_RUN_TIMEOUT_SECONDS,
+            )
         if healing is None:
             return {
                 "status": "no_change",
@@ -153,6 +179,12 @@ async def heal_post_agent() -> dict:
             "prompt_version": post_agent.prompt_version,
             "root_cause": healing.root_cause,
         }
+    except TimeoutError as exc:
+        print(f"⏱️ Post healing timed out after {AGENT_RUN_TIMEOUT_SECONDS}s")
+        raise HTTPException(
+            status_code=504,
+            detail="Social post healing timed out. Please try again later.",
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=500,

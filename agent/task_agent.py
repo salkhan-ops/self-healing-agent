@@ -38,6 +38,7 @@ from config.settings import (
     PHOENIX_PROJECT_NAME,
     USE_GEMINI_ANSWERS,
 )
+from config.llm import llm_generate_content
 from agent.usage import usage_tracker
 
 
@@ -152,7 +153,7 @@ CUSTOMER QUESTION:
 
 Answer using only the FAQ knowledge base.
 """.strip()
-        response = self.model.generate_content(prompt)
+        response = llm_generate_content(self.model, prompt, label="task_agent.answer")
         usage_tracker.record(response)
         text = getattr(response, "text", "").strip()
 

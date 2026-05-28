@@ -24,6 +24,7 @@ from config.settings import (
     IMPROVED_SYSTEM_PROMPT_TEMPLATE,
     USE_GEMINI_META,
 )
+from config.llm import llm_generate_content
 from agent.usage import usage_tracker
 
 
@@ -89,7 +90,7 @@ Rules for the new prompt:
 - It must be concise and production-ready.
 - Return only the new system prompt text.
 """.strip()
-        response = self.model.generate_content(prompt)
+        response = llm_generate_content(self.model, prompt, label="prompt_improver.improve")
         usage_tracker.record(response)
         return getattr(response, "text", "").strip()
 

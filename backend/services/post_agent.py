@@ -61,6 +61,7 @@ PLATFORM_INSTRUCTIONS = {
 
 MODEL_NAME = "gemini-2.5-flash"
 from config.phoenix_tracing import configure_phoenix_tracing
+from config.llm import llm_generate_content
 
 
 class PostAgent:
@@ -146,7 +147,7 @@ RAW BRIEF FROM MARKETING TEAM:
 
 Generate the post now.
 """.strip()
-        response = self.model.generate_content(prompt)
+        response = llm_generate_content(self.model, prompt, label="post_agent.generate")
         text = getattr(response, "text", "").strip()
         return text or "Could not generate post."
 
@@ -179,7 +180,7 @@ RAW BRIEF FROM MARKETING TEAM:
 
 Generate the post now.
 """.strip()
-        response = temp_model.generate_content(prompt)
+        response = llm_generate_content(temp_model, prompt, label="post_agent.generate_with_prompt")
         text = getattr(response, "text", "").strip()
         return text or "Could not generate post."
 

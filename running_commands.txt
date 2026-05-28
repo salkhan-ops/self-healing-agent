@@ -21,7 +21,13 @@ gcloud run deploy self-healing-agent \
   --port=8080 \
   --allow-unauthenticated \
   --clear-base-image \
-  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=2
+  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=2,PUBLIC_DEMO_HEALING_RUN_LIMIT=2,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024
+
+gcloud run services update self-healing-agent \
+  --region us-central1 \
+  --min=0 \
+  --max=2 \
+  --cpu-throttling
 
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 PUBLIC_DEMO_MODE=true \
