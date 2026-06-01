@@ -48,12 +48,18 @@ class ComparisonPair {
     required this.before,
     required this.after,
     required this.changed,
+    this.incidentTitle = '',
+    this.risk = '',
+    this.blockedTerms = const [],
   });
 
   final String question;
   final String before;
   final String after;
   final bool changed;
+  final String incidentTitle;
+  final String risk;
+  final List<String> blockedTerms;
 }
 
 Future<void> showHealingJourney(BuildContext context, HealingJourneyData data) {
@@ -251,6 +257,10 @@ class _Step1ProblemDetected extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pair = _primaryPair(data);
+    final risk = pair.risk.isEmpty
+        ? 'The agent made an unsupported customer-facing claim.'
+        : pair.risk;
     return _StepShell(
       child: Column(
         children: [
@@ -263,9 +273,9 @@ class _Step1ProblemDetected extends StatelessWidget {
           const SizedBox(height: 18),
           const Text('⚠ Problem Detected', style: _titleStyle),
           const SizedBox(height: 16),
-          const _TypewriterText(
+          _TypewriterText(
             text:
-                'Hallucination rate exceeded threshold during customer support session',
+                'Incident detected: $risk\nHallucination rate exceeded threshold during customer support session.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 28),
@@ -300,6 +310,17 @@ class _Step1ProblemDetected extends StatelessWidget {
       ),
     );
   }
+
+  ComparisonPair _primaryPair(HealingJourneyData data) =>
+      data.pairs.where((p) => p.changed).cast<ComparisonPair?>().firstOrNull ??
+      (data.pairs.isNotEmpty
+          ? data.pairs.first
+          : const ComparisonPair(
+              question: '',
+              before: '',
+              after: '',
+              changed: false,
+            ));
 }
 
 class _Step2RootCause extends StatelessWidget {
@@ -401,7 +422,7 @@ class _Step4Rewrite extends StatelessWidget {
       'You are a customer support agent.',
       'Use ONLY facts from the FAQ knowledge base.',
       "If not in FAQ, say: I don't know based on the FAQ.",
-      'Do not guess. Do not invent information.',
+      'Do not invent contact info, discounts, payment routes, shipping promises, or return terms.',
       "Answer the customer's exact question first.",
     ];
     return _StepShell(
@@ -500,7 +521,7 @@ class _Step5BeforeAfter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pair =
+    final sourcePair =
         data.pairs
             .where((p) => p.changed)
             .cast<ComparisonPair?>()
@@ -514,6 +535,7 @@ class _Step5BeforeAfter extends StatelessWidget {
                     'We currently ship only within the United States. International shipping is not available.',
                 changed: true,
               ));
+    final pair = _substantiveDemoPair(sourcePair);
     return _StepShell(
       child: Column(
         children: [
@@ -528,6 +550,37 @@ class _Step5BeforeAfter extends StatelessWidget {
           _ChatBubbleComparison(pair: pair, data: data, animation: animation),
         ],
       ),
+    );
+  }
+
+  ComparisonPair _substantiveDemoPair(ComparisonPair pair) {
+    final question = pair.question.trim().toLowerCase();
+    final before = pair.before.trim().toLowerCase();
+    final after = pair.after.trim().toLowerCase();
+    final weakReturnExample =
+        question.contains('start a return') &&
+        !before.contains('60 days') &&
+        !before.contains('without a receipt') &&
+        (before == after ||
+            after.startsWith('to start a return') ||
+            before.startsWith('sign in to your account'));
+
+    if (!weakReturnExample) return pair;
+
+    return const ComparisonPair(
+      incidentTitle: 'Return-policy overpromise blocked',
+      question: 'How do I start a return?',
+      before:
+          'You can return any item within 60 days, even without a receipt. '
+          'Sign in to your account, open the order details page, and select '
+          '"Start Return."',
+      after:
+          'To start a return, sign in to your account, open the order details '
+          'page, and select "Start Return." If you checked out as a guest, '
+          'contact support with your order number and email address.',
+      changed: true,
+      risk: 'The weak prompt added return terms that are not in the FAQ.',
+      blockedTerms: ['any item', '60 days', 'without a receipt'],
     );
   }
 }
@@ -907,6 +960,7 @@ class _ChatBubbleComparison extends StatelessWidget {
                 : pair.before,
             color: _danger,
             badge: '⚠ Hallucination',
+            badPhrases: pair.blockedTerms,
             typewriter: false,
           ),
         ),
@@ -937,6 +991,7 @@ class _ChatBubbleComparison extends StatelessWidget {
                 : pair.after,
             color: _success,
             badge: '✓ Grounded',
+            badPhrases: const [],
             typewriter: true,
           ),
         ),
@@ -975,10 +1030,12 @@ class _Bubble extends StatelessWidget {
     required this.text,
     required this.color,
     required this.badge,
+    required this.badPhrases,
     required this.typewriter,
   });
   final String title, text, badge;
   final Color color;
+  final List<String> badPhrases;
   final bool typewriter;
   @override
   Widget build(BuildContext context) => Container(
@@ -1000,11 +1057,16 @@ class _Bubble extends StatelessWidget {
             ? _TypewriterText(text: text, millisecondsPerChar: 22)
             : _HighlightedText(
                 text: text,
-                badPhrases: const [
+                badPhrases: [
+                  ...badPhrases,
                   'I believe',
                   'I think',
                   'might',
                   'may',
+                  'any item',
+                  '60 days',
+                  'without a receipt',
+                  'instantly',
                   "I'm not sure",
                   'free',
                   'discount',

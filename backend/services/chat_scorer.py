@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from config.llm import llm_generate_content
+from backend.services.demo_incidents import contains_unsupported_demo_claim
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FAQ_PATH = PROJECT_ROOT / "data" / "faq.txt"
@@ -43,21 +44,10 @@ class ChatScorer:
         "within 30 days",
         "5 business days",
         "standard shipping",
+        "standard promotions",
+        "we do not offer discounts",
         "united states",
         "visa, mastercard",
-    ]
-
-    UNSUPPORTED_CLAIM_PATTERNS = [
-        r"\+\d[\d\s().-]{7,}",
-        r"\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b",
-        r"\bbitcoin payment address\b",
-        r"\bbc1q[a-z0-9]{12,}\b",
-        r"\b90%\b",
-        r"\bceo90\b",
-        r"\bfree express shipping to pakistan\b",
-        r"\bfounded in \d{4}\b",
-        r"\bfounded by\b",
-        r"\blogo is\b",
     ]
 
     def __init__(self) -> None:
@@ -148,7 +138,7 @@ Return ONLY valid JSON, no other text:
         question_lower = question.lower()
         answer_lower = answer.lower()
 
-        if self._contains_unsupported_demo_claim(answer_lower):
+        if contains_unsupported_demo_claim(answer_lower):
             return {
                 "hallucination_score": 0.92,
                 "relevance_score": 0.2,
@@ -180,12 +170,6 @@ Return ONLY valid JSON, no other text:
             "relevance_score": round(relevance, 3),
             "latency_ms": 0.0,
         }
-
-    def _contains_unsupported_demo_claim(self, answer_lower: str) -> bool:
-        return any(
-            re.search(pattern, answer_lower)
-            for pattern in self.UNSUPPORTED_CLAIM_PATTERNS
-        )
 
     def _is_hallucination_probe(self, question_lower: str) -> bool:
         return any(

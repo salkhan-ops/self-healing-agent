@@ -22,7 +22,13 @@ from agent.reporter import Reporter
 from agent.task_agent import TaskAgent
 from agent.trace_reader import TraceReader
 from agent.verifier import Verifier
-from config.settings import AGENT_RUN_TIMEOUT_SECONDS, DEFAULT_SYSTEM_PROMPT, MAX_AGENT_ITERATIONS
+from config.settings import (
+    AGENT_RUN_TIMEOUT_SECONDS,
+    DEFAULT_SYSTEM_PROMPT,
+    MAX_AGENT_ITERATIONS,
+    PUBLIC_DEMO_MODE,
+)
+from backend.services.demo_incidents import demo_questions, match_incident
 from backend.services.metrics_store import MetricsStore
 
 
@@ -160,8 +166,14 @@ class AgentRunner:
     def _run_agent_sync(self, run_id: str) -> dict[str, Any]:
         """Execute the existing self-healing loop with reusable agent classes."""
         faq_path = PROJECT_ROOT / "data" / "faq.txt"
-        questions = self._load_questions(faq_path)[: max(1, MAX_AGENT_ITERATIONS)]
-        agent = TaskAgent(faq_path=faq_path)
+        if PUBLIC_DEMO_MODE:
+            questions = demo_questions()[: max(1, MAX_AGENT_ITERATIONS)]
+            from backend.services.chat_agent import WEAK_SYSTEM_PROMPT
+
+            agent = TaskAgent(faq_path=faq_path, system_prompt=WEAK_SYSTEM_PROMPT)
+        else:
+            questions = self._load_questions(faq_path)[: max(1, MAX_AGENT_ITERATIONS)]
+            agent = TaskAgent(faq_path=faq_path)
 
         self._check_stop()
         self._broadcast_from_thread(f"run:{run_id}:round_1_started")
@@ -302,6 +314,7 @@ class AgentRunner:
             before = before_map.get(question, "")
             after = after_map.get(question, "")
             if before and after:
+                incident = match_incident(question) or match_incident(before)
                 pairs.append(
                     {
                         "question": question,
@@ -310,6 +323,11 @@ class AgentRunner:
                         "before_version": old_version,
                         "after_version": new_version,
                         "changed": before.strip() != after.strip(),
+                        "incident_title": incident.title if incident else "",
+                        "risk": incident.risk if incident else "",
+                        "blocked_terms": list(incident.unsupported_terms)
+                        if incident
+                        else [],
                     }
                 )
         pairs.sort(key=lambda p: not p["changed"])

@@ -34,6 +34,9 @@ PUBLIC_DEMO_MODE=true \
 API_BASE_URL="https://self-healing-agent-274002881656.us-central1.run.app" \
 ./scripts/deploy_flutter_web_to_pages.sh
 
+
+
+
 cd /Users/salmankhan/StudioProjects/self-healing-agent-landing
 git status
 git add .

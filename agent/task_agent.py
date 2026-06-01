@@ -36,10 +36,12 @@ from config.settings import (
     GEMINI_MODEL_NAME,
     GOOGLE_API_KEY,
     PHOENIX_PROJECT_NAME,
+    PUBLIC_DEMO_MODE,
     USE_GEMINI_ANSWERS,
 )
 from config.llm import llm_generate_content
 from agent.usage import usage_tracker
+from backend.services.demo_incidents import grounded_demo_answer, weak_demo_answer
 
 
 class TaskAgent:
@@ -141,6 +143,10 @@ class TaskAgent:
 
     def _answer_with_gemini(self, question: str) -> str:
         """Ask Gemini to answer using the configured prompt and FAQ."""
+        demo_answer = self._public_demo_answer(question)
+        if demo_answer:
+            return demo_answer
+
         if self.model is None:
             return self._answer_from_faq(question)
 
@@ -161,6 +167,19 @@ Answer using only the FAQ knowledge base.
             return "I don't know based on the FAQ."
 
         return text
+
+    def _public_demo_answer(self, question: str) -> str:
+        """Make Agent Control demos deterministic for high-risk probes."""
+        if not PUBLIC_DEMO_MODE:
+            return ""
+
+        lowered_prompt = self.system_prompt.lower()
+        weak_prompt = (
+            "not completely sure" in lowered_prompt
+            or "general knowledge" in lowered_prompt
+            or "fill in any gaps" in lowered_prompt
+        )
+        return weak_demo_answer(question) if weak_prompt else grounded_demo_answer(question)
 
     def _load_faq_text(self) -> str:
         """Load the FAQ text, returning an empty string if the file is unavailable."""

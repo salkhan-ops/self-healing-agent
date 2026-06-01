@@ -105,7 +105,11 @@ Rules for the new prompt:
             "GUESSING": "Before answering, verify that every factual claim appears in the FAQ.",
             "IRRELEVANT": "Restate the customer's intent internally and answer that exact intent.",
             "INCOMPLETE": "Include the specific policy, timing, fee, or next step when the FAQ provides it.",
-            "HALLUCINATION": "If the FAQ conflicts with a possible answer, follow the FAQ and mention no other claim.",
+            "HALLUCINATION": (
+                "Never invent private contact details, payment addresses, "
+                "discount codes, shipping destinations, return windows, refund "
+                "timelines, company history, or brand details."
+            ),
         }
         extra_rule = category_rules.get(category, category_rules["GUESSING"])
 

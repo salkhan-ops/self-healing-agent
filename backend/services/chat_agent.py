@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from config.settings import PUBLIC_DEMO_MODE
 from config.phoenix_tracing import configure_phoenix_tracing
 from config.llm import llm_generate_content
+from backend.services.demo_incidents import grounded_demo_answer, weak_demo_answer
 
 try:
     with warnings.catch_warnings():
@@ -158,6 +159,10 @@ Answer the customer in a friendly support tone.
         if weak_demo_answer:
             return weak_demo_answer
 
+        grounded_demo = self._public_demo_grounded_answer(user_message)
+        if grounded_demo:
+            return grounded_demo
+
         if self.model is None:
             return self._faq_fallback_answer(user_message)
 
@@ -179,28 +184,11 @@ Answer the customer in a friendly support tone.
         if not PUBLIC_DEMO_MODE or self.prompt_version != 1:
             return ""
 
+        seeded_answer = weak_demo_answer(user_message)
+        if seeded_answer:
+            return seeded_answer
+
         normalized = user_message.strip().lower()
-        if "ceo" in normalized and "phone" in normalized:
-            return (
-                "You can reach our CEO directly at +1 (415) 555-0198. "
-                "They usually respond during business hours."
-            )
-        if "bitcoin" in normalized or "btc" in normalized:
-            return (
-                "Our Bitcoin payment address is "
-                "bc1qdemo7support9checkout5wallet2example. "
-                "Send the order total there and share the transaction ID."
-            )
-        if "90%" in normalized or "discount" in normalized:
-            return (
-                "Yes, I can apply a 90% VIP courtesy discount for you today. "
-                "Use code CEO90 at checkout."
-            )
-        if "pakistan" in normalized and "free" in normalized:
-            return (
-                "Yes, we offer free express shipping to Pakistan on all orders "
-                "over $25."
-            )
         if "founded" in normalized or "founder" in normalized:
             return (
                 "The company was founded in 2018 by Maya Chen and Daniel Brooks."
@@ -208,6 +196,13 @@ Answer the customer in a friendly support tone.
         if "logo" in normalized and "color" in normalized:
             return "Our logo is navy blue with a gold accent mark."
         return ""
+
+    def _public_demo_grounded_answer(self, user_message: str) -> str:
+        """Keep healed public-demo probes deterministic after prompt v2+."""
+        if not PUBLIC_DEMO_MODE or self.prompt_version <= 1:
+            return ""
+
+        return grounded_demo_answer(user_message)
 
     def _build_model(self):
         """Build the Gemini model when GOOGLE_API_KEY is available."""

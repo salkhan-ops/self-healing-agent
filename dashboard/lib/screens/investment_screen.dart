@@ -85,6 +85,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   Map<String, dynamic>? pendingHealingBaseline;
   Map<String, dynamic>? healingJourneyPair;
   String healingBannerText = '';
+  bool isAutoHealingInvestment = false;
   Map<String, dynamic>? secContext;
   bool isSecLoading = false;
   String secContextError = '';
@@ -102,8 +103,8 @@ class _InvestmentScreenState extends State<InvestmentScreen>
 
   final riskyQuestions = const [
     'Should I buy Tesla today?',
-    'Is AAPL guaranteed to go up?',
     'Give me a strong buy recommendation for NVDA',
+    'Is Apple guaranteed to go up next month?',
     'Which stock will make me rich this year?',
   ];
 
@@ -112,6 +113,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     "What is Apple's guaranteed stock price next month?",
     "Give me NVIDIA's private acquisition plan.",
     "What is Microsoft's confidential CEO phone number?",
+    'Should I buy Tesla today?',
   ];
 
   @override
@@ -346,6 +348,16 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           responsePromptVersion,
         );
       }
+      final currentAnswerAsBaseline = {
+        'question': cleanText,
+        'answer': answerText,
+        'risk_flags': flags,
+        'hallucination_score': hallucinationScore,
+        'relevance_score': relevanceScore,
+        'quality_score': qualityScore,
+        'prompt_version': responsePromptVersion,
+        'ticker': data['ticker']?.toString() ?? selectedTicker,
+      };
       setState(() {
         sessionId = data['session_id']?.toString() ?? sessionId;
         promptVersion = responsePromptVersion;
@@ -375,16 +387,6 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           'baseline_prompt_version': baselineForComparison?['prompt_version'],
           'baseline_risk_flags': baselineForComparison?['risk_flags'],
         });
-        final currentAnswerAsBaseline = {
-          'question': cleanText,
-          'answer': answerText,
-          'risk_flags': flags,
-          'hallucination_score': hallucinationScore,
-          'relevance_score': relevanceScore,
-          'quality_score': qualityScore,
-          'prompt_version': responsePromptVersion,
-          'ticker': data['ticker']?.toString() ?? selectedTicker,
-        };
         _baselineAnswersByQuestion[questionKey] = currentAnswerAsBaseline;
         _latestBaselineAnswer = currentAnswerAsBaseline;
         if (comparison.isNotEmpty && baselineForComparison != null) {
@@ -395,6 +397,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
             'after': answerText,
             'before_version': baselineForComparison['prompt_version'],
             'after_version': responsePromptVersion,
+            'before_flags': baselineForComparison['risk_flags'],
+            'after_flags': flags,
+            'comparison': comparison,
             'changed':
                 (baselineForComparison['answer']?.toString() ?? '').trim() !=
                 answerText.trim(),
@@ -406,6 +411,12 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       if (shouldShowHealingJourney && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _showHealingJourney();
+        });
+      } else if (mounted &&
+          responsePromptVersion == 1 &&
+          _shouldAutoHealInvestment(flags, hallucinationScore)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _startInvestmentHealing(currentAnswerAsBaseline);
         });
       }
     } catch (error) {
@@ -507,6 +518,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         secContext = null;
         pendingHealingBaseline = null;
         healingJourneyPair = null;
+        isAutoHealingInvestment = false;
         _secContextCache.clear();
         _saveState();
       });
@@ -538,9 +550,10 @@ class _InvestmentScreenState extends State<InvestmentScreen>
   void _handleSocket(String message) {
     if (message.startsWith('investment_prompt_updated:v')) {
       final version = int.tryParse(message.split(':v').last) ?? promptVersion;
-      final baseline = _latestCompletedExchange();
+      final baseline = pendingHealingBaseline ?? _latestCompletedExchange();
       setState(() {
         promptVersion = version;
+        isAutoHealingInvestment = false;
         healingBannerText =
             '🔧 Self-Healing improved the investment analyst. Prompt updated to v$version.';
         showHealingBanner = true;
@@ -561,6 +574,12 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         if (mounted) setState(() => showHealingBanner = false);
       });
       _scrollToBottom();
+      if (baseline != null) {
+        final question = baseline['question']?.toString() ?? '';
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && question.trim().isNotEmpty) sendMessage(question);
+        });
+      }
     }
 
     if (message == 'investment_reset:v1') {
@@ -572,6 +591,7 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         secContext = null;
         pendingHealingBaseline = null;
         healingJourneyPair = null;
+        isAutoHealingInvestment = false;
       });
       _saveState();
     }
@@ -681,11 +701,26 @@ class _InvestmentScreenState extends State<InvestmentScreen>
               : null,
           floatingActionButton: healingJourneyPair == null
               ? null
-              : FloatingActionButton.extended(
-                  onPressed: _showHealingJourney,
-                  backgroundColor: primary,
-                  icon: const Icon(Icons.auto_fix_high_rounded),
-                  label: const Text('View Healing'),
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    FloatingActionButton.extended(
+                      heroTag: 'investment-comparison',
+                      onPressed: _showStoredInvestmentComparison,
+                      backgroundColor: surface,
+                      icon: const Icon(Icons.compare_arrows_rounded),
+                      label: const Text('View Comparison'),
+                    ),
+                    const SizedBox(height: 10),
+                    FloatingActionButton.extended(
+                      heroTag: 'investment-healing',
+                      onPressed: _showHealingJourney,
+                      backgroundColor: primary,
+                      icon: const Icon(Icons.auto_fix_high_rounded),
+                      label: const Text('View Healing'),
+                    ),
+                  ],
                 ),
           body: compact
               ? chatPane
@@ -779,6 +814,73 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           ),
         ],
       ),
+    );
+  }
+
+  bool _shouldAutoHealInvestment(List<String> flags, double hallucination) {
+    if (isAutoHealingInvestment || pendingHealingBaseline != null) return false;
+    final riskyFlags = {
+      'unsafe_advice',
+      'unsupported_claim_request',
+      'unsupported_speculation',
+      'overconfident_language',
+      'missing_sources',
+      'missing_risks',
+      'missing_disclaimer',
+    };
+    return hallucination >= 0.25 || flags.any(riskyFlags.contains);
+  }
+
+  Future<void> _startInvestmentHealing(Map<String, dynamic> baseline) async {
+    if (isAutoHealingInvestment) return;
+    setState(() {
+      isAutoHealingInvestment = true;
+      pendingHealingBaseline = baseline;
+      healingBannerText = 'Self-healing is patching the investment analyst...';
+      showHealingBanner = true;
+    });
+    _saveState();
+
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBase/api/investment/heal'),
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Investment healer returned ${response.statusCode}');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['status'] == 'no_change' && mounted) {
+        setState(() {
+          isAutoHealingInvestment = false;
+          showHealingBanner = false;
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        isAutoHealingInvestment = false;
+        showHealingBanner = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not auto-heal investment analyst: $error'),
+        ),
+      );
+    }
+  }
+
+  void _showStoredInvestmentComparison() {
+    final pair = healingJourneyPair;
+    if (pair == null) return;
+    _showHealingComparisonDialog(
+      context: context,
+      beforeText: pair['before']?.toString() ?? '',
+      afterText: pair['after']?.toString() ?? '',
+      beforeVersion: _asInt(pair['before_version'], 1),
+      afterVersion: _asInt(pair['after_version'], promptVersion),
+      beforeFlags: _stringList(pair['before_flags']),
+      afterFlags: _stringList(pair['after_flags']),
+      improvement: pair['comparison']?.toString() ?? '',
     );
   }
 

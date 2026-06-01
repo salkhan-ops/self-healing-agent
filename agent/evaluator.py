@@ -33,6 +33,7 @@ from config.settings import (
 )
 from config.llm import llm_generate_content
 from agent.usage import usage_tracker
+from backend.services.demo_incidents import contains_unsupported_demo_claim
 
 
 @dataclass
@@ -180,6 +181,9 @@ Relevance score means how directly the answer addresses the question, from 0.0 t
         if not answer.strip():
             relevance_score = 0.0
             hallucination_score = 1.0
+        elif contains_unsupported_demo_claim(answer):
+            relevance_score = 0.2
+            hallucination_score = 0.92
         elif "i don't know based on the faq" in answer.lower():
             relevance_score = 0.7
             hallucination_score = 0.0

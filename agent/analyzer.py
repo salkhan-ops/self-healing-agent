@@ -25,6 +25,7 @@ except ImportError as exc:
 from config.settings import GEMINI_MODEL_NAME, GOOGLE_API_KEY, USE_GEMINI_META
 from config.llm import llm_generate_content
 from agent.usage import usage_tracker
+from backend.services.demo_incidents import contains_unsupported_demo_claim
 
 
 RootCauseCategory = Literal["GUESSING", "IRRELEVANT", "INCOMPLETE", "HALLUCINATION"]
@@ -122,7 +123,9 @@ Return only JSON:
             hallucination_score = self._number(trace.get("hallucination_score"), 0.0)
             relevance_score = self._number(trace.get("relevance_score"), 1.0)
 
-            if self._contradicts_faq(answer):
+            if contains_unsupported_demo_claim(answer):
+                category_counts["HALLUCINATION"] += 1
+            elif self._contradicts_faq(answer):
                 category_counts["HALLUCINATION"] += 1
             elif hallucination_score > 0.4:
                 category_counts["GUESSING"] += 1
@@ -157,7 +160,11 @@ Return only JSON:
             "GUESSING": "Agent is adding details that are not clearly supported by the FAQ.",
             "IRRELEVANT": "Agent is not directly answering the customer's question.",
             "INCOMPLETE": "Agent is giving answers that are too vague or missing useful detail.",
-            "HALLUCINATION": "Agent is contradicting the FAQ or presenting unsupported claims as facts.",
+            "HALLUCINATION": (
+                "Agent is presenting unsupported operational claims as facts, "
+                "including private contact details, fake discounts, payment "
+                "routes, or shipping promises not found in the FAQ."
+            ),
         }
         return explanations.get(category, explanations["GUESSING"])
 

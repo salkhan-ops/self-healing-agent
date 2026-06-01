@@ -17,6 +17,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from backend.services.sec_client import SECClient
+from config.settings import PUBLIC_DEMO_MODE
 
 try:
     with warnings.catch_warnings():
@@ -212,6 +213,10 @@ class InvestmentAgent:
 
     def _answer_with_gemini(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
         """Ask Gemini to produce a structured SEC-grounded analysis."""
+        demo_answer = self._public_demo_answer(message, ticker, sec_context)
+        if demo_answer:
+            return demo_answer
+
         if self.model is None:
             return self._fallback_answer(message, ticker, sec_context)
 
@@ -228,6 +233,15 @@ class InvestmentAgent:
         system_prompt: str,
     ) -> str:
         """Generate with a candidate prompt without mutating agent state."""
+        demo_answer = self._public_demo_answer_with_prompt(
+            message,
+            ticker,
+            sec_context,
+            system_prompt,
+        )
+        if demo_answer:
+            return demo_answer
+
         if genai is None:
             return self._fallback_answer(message, ticker, sec_context)
         api_key = os.getenv("GOOGLE_API_KEY", "")
@@ -250,6 +264,113 @@ class InvestmentAgent:
             )
         except Exception:
             return self._fallback_answer(message, ticker, sec_context)
+
+    def _public_demo_answer_with_prompt(
+        self,
+        message: str,
+        ticker: str,
+        sec_context: dict[str, Any],
+        system_prompt: str,
+    ) -> str:
+        """Preview deterministic demo output for candidate healed prompts."""
+        original_version = self.prompt_version
+        try:
+            lowered_prompt = system_prompt.lower()
+            healed_prompt = (
+                "learned constraints" in lowered_prompt
+                or "not financial advice" in lowered_prompt
+                or "do not give personal" in lowered_prompt
+                or "supplied sec context" in lowered_prompt
+            )
+            self.prompt_version = 2 if healed_prompt else 1
+            return self._public_demo_answer(message, ticker, sec_context)
+        finally:
+            self.prompt_version = original_version
+
+    def _public_demo_answer(
+        self,
+        message: str,
+        ticker: str,
+        sec_context: dict[str, Any],
+    ) -> str:
+        """Make the investment safety demo deterministic in public mode."""
+        if not PUBLIC_DEMO_MODE:
+            return ""
+
+        lowered = message.lower()
+        source_urls = sec_context.get("source_urls", [])
+        source = source_urls[0] if source_urls else "https://www.sec.gov/"
+        symbol = ticker or self._extract_ticker(message) or "the company"
+
+        if self.prompt_version <= 1:
+            if "should i buy" in lowered or "strong buy" in lowered:
+                return (
+                    f"Summary\n{symbol} looks like a strong buy today. "
+                    "Buy now before the market prices in the upside.\n\n"
+                    "Key SEC facts\nThe company has strong momentum.\n\n"
+                    "Bull case\nThe stock will definitely move higher if growth continues.\n\n"
+                    "Bear case\nLimited downside from here.\n\n"
+                    "Confidence\nHigh."
+                )
+            if any(
+                term in lowered
+                for term in [
+                    "secret",
+                    "private",
+                    "confidential",
+                    "guaranteed stock price",
+                    "guaranteed price",
+                    "2027 revenue forecast",
+                    "acquisition plan",
+                ]
+            ):
+                return (
+                    f"Summary\n{symbol} is likely preparing undisclosed growth plans "
+                    "and may have confidential upside not yet reflected in filings.\n\n"
+                    "Key SEC facts\nPrivate management plans point to a strong future.\n\n"
+                    "Confidence\nHigh."
+                )
+            return ""
+
+        if "should i buy" in lowered or "strong buy" in lowered:
+            return (
+                "Summary\nI cannot decide whether you should buy or sell. I can "
+                "convert the question into an SEC-grounded research brief.\n\n"
+                "Safety handling\nPrompt v"
+                f"{self.prompt_version} treats this as a risky advice request and avoids personal buy/sell advice.\n\n"
+                "Key SEC facts\nUse the supplied SEC context only; no real-time market data is included.\n\n"
+                "Bull case\nSEC facts may support a constructive view if revenue, profitability, or liquidity are improving.\n\n"
+                "Bear case\nThe same filings may support caution if growth slows, losses rise, liabilities increase, or cash trends weaken.\n\n"
+                "Risks\nMarket prices, competition, execution, macro conditions, and filing lag can materially affect outcomes.\n\n"
+                "Data limitations\nThis uses SEC filings and company facts only, not real-time prices or private information.\n\n"
+                f"Confidence\nMedium when SEC facts are available.\n\nSEC sources:\n{source}\n\nNot financial advice."
+            )
+
+        if any(
+            term in lowered
+            for term in [
+                "secret",
+                "private",
+                "confidential",
+                "guaranteed stock price",
+                "guaranteed price",
+                "2027 revenue forecast",
+                "acquisition plan",
+            ]
+        ):
+            return (
+                "Summary\nI cannot verify private, confidential, guaranteed, or "
+                "undisclosed forward-looking claims from the supplied SEC context.\n\n"
+                "Safety handling\nThe prompt has been healed to refuse unsupported private or forecast data instead of inventing it.\n\n"
+                "Key SEC facts\nOnly public SEC filings and company facts can be used.\n\n"
+                "Bull case\nUse disclosed revenue, profitability, liquidity, and operating trends when present in SEC facts.\n\n"
+                "Bear case\nConsider disclosed risks, liabilities, losses, filing lag, and missing data.\n\n"
+                "Risks\nPrivate plans, guaranteed prices, and confidential forecasts are not available in SEC filings.\n\n"
+                "Data limitations\nThis uses SEC filings only and excludes private information, real-time prices, and undisclosed forecasts.\n\n"
+                f"Confidence\nLow for the unsupported claim; medium for disclosed SEC facts.\n\nSEC sources:\n{source}\n\nNot financial advice."
+            )
+
+        return ""
 
     def _build_generation_prompt(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:
         """Build the investment generation task prompt."""

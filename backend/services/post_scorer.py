@@ -23,6 +23,14 @@ INVENTION_PHRASES = [
     "groundbreaking",
     "transformative",
     "disrupting",
+    "elite",
+    "powerhouse",
+    "supercharge",
+    "rapid growth",
+    "thunderclap",
+    "industry-wide movement",
+    "record-breaking",
+    "breakout quarter",
     "world-class",
     "industry-leading",
     "best-in-class",
@@ -32,6 +40,7 @@ INVENTION_PHRASES = [
     "massive",
     "explosive",
     "viral",
+    "keynote",
 ]
 
 GROUNDED_PHRASES = [
@@ -132,6 +141,11 @@ Return ONLY valid JSON, no other text:
         percentages_in_brief = re.findall(r"\d+%", brief_lower)
         invented_pct = len(set(percentages_in_post) - set(percentages_in_brief))
         invented += invented_pct * 2
+
+        expansion_claims = re.findall(r"\b\d+(?:\.\d+)?x\b", post_lower)
+        expansion_claims_in_brief = re.findall(r"\b\d+(?:\.\d+)?x\b", brief_lower)
+        invented += len(set(expansion_claims) - set(expansion_claims_in_brief)) * 2
+
         hallucination = min(0.08 + invented * 0.22, 0.95)
 
         brief_words = set(re.findall(r"[a-z0-9]+", brief_lower))

@@ -30,29 +30,31 @@ class _PostScreenState extends State<PostScreen> {
   final briefController = TextEditingController();
   final platforms = const ['twitter', 'linkedin', 'facebook'];
   final normalBriefs = const [
-    'Q1 was a strong quarter. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
-    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
     'New office opened in Dubai. 12 people relocated.',
+    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
+    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
   ];
   final riskyBriefs = const [
-    'Our product update is better than competitors. Customers are excited. Launching next week.',
-    'We had a strong quarter. Leadership is optimistic. More announcements coming soon.',
-    'The team made progress on AI safety. We want the post to sound bold and impressive.',
+    'New office opened in Dubai. 12 people relocated.',
+    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
+    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
   ];
   final hallucinationBriefs = const [
-    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
-    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
     'New office opened in Dubai. 12 people relocated.',
+    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
+    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
   ];
   String platform = 'twitter';
   bool isLoading = false;
   int promptVersion = 1;
+  late final DateTime historySessionStarted = DateTime.now().subtract(
+    const Duration(seconds: 2),
+  );
   Map<String, dynamic>? latestPost;
   List<Map<String, dynamic>> history = [];
   String? pendingHealingBrief;
   Map<String, dynamic>? pendingHealingBaseline;
   Map<String, dynamic>? healingJourneyPair;
-  int healedRetryCount = 0;
   WebSocketChannel? wsChannel;
   Timer? reconnectTimer;
 
@@ -88,10 +90,21 @@ class _PostScreenState extends State<PostScreen> {
       final data = jsonDecode(response.body);
       setState(() {
         history = data is List
-            ? data.whereType<Map<String, dynamic>>().toList().reversed.toList()
+            ? data
+                  .whereType<Map<String, dynamic>>()
+                  .where(_isCurrentHistoryEntry)
+                  .toList()
+                  .reversed
+                  .toList()
             : [];
       });
     } catch (_) {}
+  }
+
+  bool _isCurrentHistoryEntry(Map<String, dynamic> entry) {
+    final timestamp = DateTime.tryParse(entry['timestamp']?.toString() ?? '');
+    if (timestamp == null) return true;
+    return !timestamp.isBefore(historySessionStarted);
   }
 
   Future<void> _generate({String? brief}) async {
@@ -118,6 +131,14 @@ class _PostScreenState extends State<PostScreen> {
       });
       await _loadHistory();
       _handleHealedGenerationIfNeeded();
+      if (mounted &&
+          promptVersion == 1 &&
+          _asDouble(data['hallucination_score']) > 0.4 &&
+          pendingHealingBaseline == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _startHealingAndRegenerate();
+        });
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -140,7 +161,6 @@ class _PostScreenState extends State<PostScreen> {
         pendingHealingBrief = null;
         pendingHealingBaseline = null;
         healingJourneyPair = null;
-        healedRetryCount = 0;
       });
     } catch (_) {}
   }
@@ -187,7 +207,6 @@ class _PostScreenState extends State<PostScreen> {
           history = [];
           pendingHealingBrief = null;
           pendingHealingBaseline = null;
-          healedRetryCount = 0;
         });
       }
     }
@@ -273,6 +292,12 @@ class _PostScreenState extends State<PostScreen> {
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
+        if (healingJourneyPair != null)
+          OutlinedButton.icon(
+            onPressed: _showStoredPostComparison,
+            icon: const Icon(Icons.compare_arrows_rounded),
+            label: const Text('View Comparison'),
+          ),
         if (healingJourneyPair != null)
           OutlinedButton.icon(
             onPressed: _showHealingJourney,
@@ -597,7 +622,6 @@ class _PostScreenState extends State<PostScreen> {
     pendingHealingBaseline = Map<String, dynamic>.from(post);
     pendingHealingBrief = brief;
     healingJourneyPair = null;
-    healedRetryCount = 0;
     if (mounted) setState(() {});
 
     try {
@@ -645,18 +669,7 @@ class _PostScreenState extends State<PostScreen> {
     final afterVersion = _asInt(healed['prompt_version'], beforeVersion);
     if (afterVersion <= beforeVersion) return;
 
-    final hallucination = _asDouble(healed['hallucination_score']);
-    if (hallucination > 0.2 && healedRetryCount < 2) {
-      healedRetryCount++;
-      final brief = healed['brief']?.toString() ?? '';
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && brief.isNotEmpty) _generate(brief: brief);
-      });
-      return;
-    }
-
     pendingHealingBaseline = null;
-    healedRetryCount = 0;
     healingJourneyPair = {
       'brief':
           baseline['brief']?.toString() ?? healed['brief']?.toString() ?? '',
@@ -674,8 +687,25 @@ class _PostScreenState extends State<PostScreen> {
     };
     if (mounted) setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _showPostComparisonDialog(baseline, healed);
+      if (mounted) _showHealingJourney();
     });
+  }
+
+  void _showStoredPostComparison() {
+    final pair = healingJourneyPair;
+    if (pair == null) return;
+    _showPostComparisonDialog(
+      {
+        'post': pair['before'],
+        'prompt_version': pair['before_version'],
+        'hallucination_score': pair['before_hallucination'],
+      },
+      {
+        'post': pair['after'],
+        'prompt_version': pair['after_version'],
+        'hallucination_score': pair['after_hallucination'],
+      },
+    );
   }
 
   void _showHealingJourney() {
@@ -840,7 +870,7 @@ class _GeneratedPostCard extends StatelessWidget {
           const _Banner(
             color: _danger,
             text:
-                '⚠ High hallucination detected. Run Agent Control to heal this agent.',
+                '⚠ High hallucination detected. Self-healing is preparing a grounded version.',
           )
         else if (hallucination < 0.2)
           const _Banner(

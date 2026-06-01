@@ -6,6 +6,7 @@ answer evaluation, and in-memory session history for the investment agent.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime
 from typing import Any, Literal
@@ -15,15 +16,18 @@ from pydantic import BaseModel, Field
 
 from backend.services.agent_runner import websocket_manager
 from backend.services.investment_agent import investment_agent
+from backend.services.investment_healer import investment_healer
 from backend.services.investment_history_store import (
     add_investment_entry,
     clear_investment_entries,
 )
+from config.settings import AGENT_RUN_TIMEOUT_SECONDS
 
 
 router = APIRouter(prefix="/api/investment", tags=["investment"])
 sessions: dict[str, list["InvestmentMessage"]] = {}
 MAX_SESSION_MESSAGES = 50
+_healing_lock = asyncio.Lock()
 
 
 class InvestmentRequest(BaseModel):
@@ -132,6 +136,48 @@ async def reset_investment() -> dict[str, int | str]:
     clear_investment_entries()
     await websocket_manager.broadcast("investment_reset:v1")
     return {"status": "reset", "prompt_version": 1}
+
+
+@router.post("/heal")
+async def heal_investment() -> dict[str, Any]:
+    """Run the dedicated investment healer and update the live analyst prompt."""
+    if _healing_lock.locked():
+        raise HTTPException(
+            status_code=409,
+            detail="Investment healing is already running.",
+        )
+
+    try:
+        async with _healing_lock:
+            healing = await asyncio.wait_for(
+                asyncio.to_thread(investment_healer.heal_recent_answers),
+                timeout=AGENT_RUN_TIMEOUT_SECONDS,
+            )
+        if healing is None:
+            return {
+                "status": "no_change",
+                "prompt_version": investment_agent.prompt_version,
+            }
+
+        investment_agent.update_prompt(healing.new_prompt)
+        await websocket_manager.broadcast(
+            f"investment_prompt_updated:v{investment_agent.prompt_version}"
+        )
+        return {
+            "status": "healed",
+            "prompt_version": investment_agent.prompt_version,
+            "root_cause": healing.root_cause,
+        }
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Investment healing timed out. Please try again later.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Investment healing failed: {exc}",
+        ) from exc
 
 
 @router.get("/tickers")

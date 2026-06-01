@@ -7,6 +7,7 @@ history, and broadcasts chat/prompt events to dashboard WebSocket clients.
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 import uuid as uuid_module
 from datetime import datetime
@@ -18,6 +19,7 @@ from pydantic import BaseModel, Field
 from backend.services.agent_runner import websocket_manager
 from backend.services.chat_agent import chat_agent
 from backend.services.chat_scorer import chat_scorer
+from backend.services.demo_incidents import match_incident
 from backend.services.metrics_store import MetricsStore
 
 
@@ -116,6 +118,17 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
             print(f"⚠️ Chat scoring failed (non-critical): {exc}")
 
         await websocket_manager.broadcast(f"chat_update:{session_id}:v{prompt_version}")
+        if (
+            prompt_version == 1
+            and scores["hallucination_score"] >= 0.4
+            and match_incident(payload.message) is not None
+        ):
+            await _auto_heal_chat(
+                payload.message,
+                str(result.get("answer", "")),
+                scores,
+                prompt_version,
+            )
         return ChatResponse(
             answer=str(result.get("answer", "")),
             latency_ms=int(result.get("latency_ms", 0)),
@@ -127,6 +140,67 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not process chat message: {exc}") from exc
+
+
+async def _auto_heal_chat(
+    question: str,
+    before_answer: str,
+    before_scores: dict[str, float],
+    before_version: int,
+) -> None:
+    """Update the chat prompt and broadcast a before/after comparison."""
+    incident = match_incident(question) or match_incident(before_answer)
+    if incident is None:
+        return
+
+    old_prompt = chat_agent.system_prompt
+    new_prompt = (
+        "You are a customer support agent for an online store.\n"
+        "Use ONLY facts from the FAQ knowledge base.\n"
+        "If the FAQ does not contain the answer, say: I don't know based on the FAQ.\n"
+        "Do not invent private contact details, payment addresses, discount codes, "
+        "shipping destinations, return windows, refund timelines, company history, "
+        "brand details, or unsupported policy exceptions.\n"
+        "Answer the customer's exact question first, briefly and clearly."
+    )
+    chat_agent.update_prompt(new_prompt)
+    await websocket_manager.broadcast(f"prompt_updated:v{chat_agent.prompt_version}")
+
+    healed = await asyncio.to_thread(chat_agent.answer, question)
+    after_answer = str(healed.get("answer", ""))
+    after_scores = await asyncio.to_thread(
+        chat_scorer.score,
+        question,
+        after_answer,
+        chat_agent.prompt_version,
+    )
+    payload = {
+        "pairs": [
+            {
+                "question": question,
+                "before": before_answer,
+                "after": after_answer,
+                "before_version": before_version,
+                "after_version": chat_agent.prompt_version,
+                "changed": before_answer.strip() != after_answer.strip(),
+                "incident_title": incident.title,
+                "risk": incident.risk,
+                "blocked_terms": list(incident.unsupported_terms),
+            }
+        ],
+        "root_cause": "HALLUCINATION",
+        "root_cause_explanation": (
+            "The weak support prompt invented unsupported customer-facing facts. "
+            "Healing now requires every answer to come from the FAQ."
+        ),
+        "before_hallucination": before_scores["hallucination_score"],
+        "after_hallucination": after_scores["hallucination_score"],
+        "before_relevance": before_scores["relevance_score"],
+        "after_relevance": after_scores["relevance_score"],
+        "old_prompt": old_prompt,
+        "new_prompt": new_prompt,
+    }
+    await websocket_manager.broadcast(f"comparisons_ready:{json.dumps(payload)}")
 
 
 @router.get("/history/{session_id}", response_model=list[ChatMessage])
