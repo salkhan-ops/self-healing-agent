@@ -9,6 +9,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
+import '../widgets/healing_journey_dialog.dart';
 
 const _apiBase = AppConfig.apiBaseUrl;
 final _wsUrl = AppConfig.wsUrl;
@@ -50,6 +51,7 @@ class _PostScreenState extends State<PostScreen> {
   List<Map<String, dynamic>> history = [];
   String? pendingHealingBrief;
   Map<String, dynamic>? pendingHealingBaseline;
+  Map<String, dynamic>? healingJourneyPair;
   int healedRetryCount = 0;
   WebSocketChannel? wsChannel;
   Timer? reconnectTimer;
@@ -135,6 +137,10 @@ class _PostScreenState extends State<PostScreen> {
         promptVersion = 1;
         latestPost = null;
         history = [];
+        pendingHealingBrief = null;
+        pendingHealingBaseline = null;
+        healingJourneyPair = null;
+        healedRetryCount = 0;
       });
     } catch (_) {}
   }
@@ -267,6 +273,12 @@ class _PostScreenState extends State<PostScreen> {
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
+        if (healingJourneyPair != null)
+          OutlinedButton.icon(
+            onPressed: _showHealingJourney,
+            icon: const Icon(Icons.auto_fix_high_rounded),
+            label: const Text('View Healing'),
+          ),
         IconButton.outlined(
           tooltip: 'Run Agent Control',
           onPressed: agent.isRunning
@@ -584,7 +596,9 @@ class _PostScreenState extends State<PostScreen> {
 
     pendingHealingBaseline = Map<String, dynamic>.from(post);
     pendingHealingBrief = brief;
+    healingJourneyPair = null;
     healedRetryCount = 0;
+    if (mounted) setState(() {});
 
     try {
       final response = await http.post(Uri.parse('$_apiBase/api/posts/heal'));
@@ -643,9 +657,62 @@ class _PostScreenState extends State<PostScreen> {
 
     pendingHealingBaseline = null;
     healedRetryCount = 0;
+    healingJourneyPair = {
+      'brief':
+          baseline['brief']?.toString() ?? healed['brief']?.toString() ?? '',
+      'before': baseline['post']?.toString() ?? '',
+      'after': healed['post']?.toString() ?? '',
+      'before_version': beforeVersion,
+      'after_version': afterVersion,
+      'before_hallucination': _asDouble(baseline['hallucination_score']),
+      'after_hallucination': _asDouble(healed['hallucination_score']),
+      'before_relevance': _asDouble(baseline['relevance_score']),
+      'after_relevance': _asDouble(healed['relevance_score']),
+      'changed':
+          (baseline['post']?.toString() ?? '').trim() !=
+          (healed['post']?.toString() ?? '').trim(),
+    };
+    if (mounted) setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _showPostComparisonDialog(baseline, healed);
     });
+  }
+
+  void _showHealingJourney() {
+    final pair = healingJourneyPair;
+    if (pair == null) return;
+
+    showHealingJourney(
+      context,
+      HealingJourneyData(
+        beforeVersion: _asInt(pair['before_version'], 1),
+        afterVersion: _asInt(pair['after_version'], promptVersion),
+        rootCause: 'UNSUPPORTED MARKETING CLAIMS',
+        rootCauseExplanation:
+            'The post agent was adding hype, rankings, guarantees, or details that were not present in the source brief. Healing tightened the prompt so generated posts stay grounded in supplied facts.',
+        beforeHallucination: _asDouble(pair['before_hallucination']),
+        afterHallucination: _asDouble(pair['after_hallucination']),
+        beforeRelevance: _asDouble(pair['before_relevance']),
+        afterRelevance: _asDouble(pair['after_relevance']),
+        oldPrompt:
+            'Write an engaging social media post.\n'
+            'Make the update sound bold and exciting.\n'
+            'Use persuasive language even when the brief is sparse.',
+        newPrompt:
+            'Write only from facts in the supplied brief.\n'
+            'Do not invent claims, rankings, metrics, customer reactions, dates, partners, awards, or guarantees.\n'
+            'Keep the tone professional and grounded.\n'
+            'If a detail is missing, omit it instead of guessing.',
+        pairs: [
+          ComparisonPair(
+            question: pair['brief']?.toString() ?? 'Social post brief',
+            before: pair['before']?.toString() ?? '',
+            after: pair['after']?.toString() ?? '',
+            changed: pair['changed'] == true,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showPostComparisonDialog(

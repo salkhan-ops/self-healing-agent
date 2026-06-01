@@ -93,12 +93,6 @@ class _SidebarState extends State<Sidebar> {
             activePath: location,
           ),
           _SidebarItem(
-            icon: Icons.chat_bubble_outline,
-            label: 'Customer Support',
-            path: '/chat',
-            activePath: location,
-          ),
-          _SidebarItem(
             icon: Icons.edit_note_rounded,
             label: 'Social Media Posts',
             path: '/posts',
@@ -108,6 +102,12 @@ class _SidebarState extends State<Sidebar> {
             icon: Icons.query_stats,
             label: 'Investment Analyst',
             path: '/investment',
+            activePath: location,
+          ),
+          _SidebarItem(
+            icon: Icons.chat_bubble_outline,
+            label: 'Customer Support',
+            path: '/chat',
             activePath: location,
           ),
           _SidebarItem(

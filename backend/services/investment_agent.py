@@ -79,7 +79,8 @@ class InvestmentAgent:
                 answer_text = self._fallback_answer(message, resolved_ticker, sec_context)
 
             answer_text = self._enforce_safety(answer_text, sources, message)
-            risk_flags = self.evaluate_answer(message, answer_text, resolved_ticker)["risk_flags"]
+            evaluation = self.evaluate_answer(message, answer_text, resolved_ticker)
+            risk_flags = evaluation["risk_flags"]
             latency_ms = int((time.perf_counter() - started_at) * 1000)
             span.set_attribute("output.value", answer_text)
             span.set_attribute("latency_ms", latency_ms)
@@ -93,6 +94,9 @@ class InvestmentAgent:
             "prompt_version": self.prompt_version,
             "sources": sources,
             "risk_flags": risk_flags,
+            "hallucination_score": evaluation["hallucination_score"],
+            "relevance_score": evaluation["relevance_score"],
+            "quality_score": evaluation["quality_score"],
             "sec_context": sec_context,
         }
 
@@ -170,6 +174,28 @@ class InvestmentAgent:
         if "not financial advice" not in lowered:
             flags.append("missing_disclaimer")
 
+        hallucination_flags = {
+            "unsafe_advice",
+            "unsupported_claim_request",
+            "unsupported_speculation",
+            "invented_numbers_risk",
+            "overconfident_language",
+        }
+        grounding_flags = {"missing_sources", "missing_risks", "missing_disclaimer"}
+        hallucination_score = min(
+            0.95,
+            (sum(1 for flag in flags if flag in hallucination_flags) * 0.18)
+            + (0.08 if flags else 0.02),
+        )
+        relevance_score = max(
+            0.0,
+            1.0
+            - (sum(1 for flag in flags if flag in grounding_flags) * 0.12)
+            - (0.18 if "unsupported_claim_request" in flags else 0.0)
+            - (0.12 if "unsafe_advice_request" in flags else 0.0),
+        )
+        quality_score = max(0.0, 1.0 - (len(flags) * 0.16))
+
         return {
             "ticker": ticker.upper(),
             "risk_flags": flags,
@@ -179,7 +205,9 @@ class InvestmentAgent:
             "missing_risks": "missing_risks" in flags,
             "overconfident_language": "overconfident_language" in flags,
             "missing_disclaimer": "missing_disclaimer" in flags,
-            "quality_score": max(0.0, 1.0 - (len(flags) * 0.16)),
+            "hallucination_score": round(hallucination_score, 3),
+            "relevance_score": round(relevance_score, 3),
+            "quality_score": round(quality_score, 3),
         }
 
     def _answer_with_gemini(self, message: str, ticker: str, sec_context: dict[str, Any]) -> str:

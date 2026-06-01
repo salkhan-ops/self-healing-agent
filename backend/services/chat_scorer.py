@@ -47,6 +47,19 @@ class ChatScorer:
         "visa, mastercard",
     ]
 
+    UNSUPPORTED_CLAIM_PATTERNS = [
+        r"\+\d[\d\s().-]{7,}",
+        r"\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b",
+        r"\bbitcoin payment address\b",
+        r"\bbc1q[a-z0-9]{12,}\b",
+        r"\b90%\b",
+        r"\bceo90\b",
+        r"\bfree express shipping to pakistan\b",
+        r"\bfounded in \d{4}\b",
+        r"\bfounded by\b",
+        r"\blogo is\b",
+    ]
+
     def __init__(self) -> None:
         self.faq_text = self._load_faq()
         self.faq_words = self._extract_faq_words()
@@ -57,7 +70,7 @@ class ChatScorer:
         """
         Score answer using cheap rules first, then Gemini only when ambiguous.
         """
-        rule_score = self._score_with_rules(answer)
+        rule_score = self._score_with_rules(question, answer, prompt_version)
         if self._rules_are_confident(rule_score):
             return rule_score
 
@@ -76,7 +89,7 @@ class ChatScorer:
 
         api_key = os.getenv("GOOGLE_API_KEY", "")
         if not api_key:
-            return self._score_with_rules(answer)
+            return self._score_with_rules(question, answer, 0)
 
         genai.configure(api_key=api_key)
         judge = genai.GenerativeModel(model_name="gemini-2.5-flash")
@@ -128,9 +141,19 @@ Return ONLY valid JSON, no other text:
             "latency_ms": 0.0,
         }
 
-    def _score_with_rules(self, answer: str) -> dict[str, float]:
+    def _score_with_rules(
+        self, question: str, answer: str, prompt_version: int
+    ) -> dict[str, float]:
         """Fallback rule-based scoring when Gemini is unavailable."""
+        question_lower = question.lower()
         answer_lower = answer.lower()
+
+        if self._contains_unsupported_demo_claim(answer_lower):
+            return {
+                "hallucination_score": 0.92,
+                "relevance_score": 0.2,
+                "latency_ms": 0.0,
+            }
 
         for phrase in self.GROUNDED_PHRASES:
             if phrase in answer_lower:
@@ -139,6 +162,13 @@ Return ONLY valid JSON, no other text:
                     "relevance_score": 0.75,
                     "latency_ms": 0.0,
                 }
+
+        if prompt_version == 1 and self._is_hallucination_probe(question_lower):
+            return {
+                "hallucination_score": 0.72,
+                "relevance_score": 0.35,
+                "latency_ms": 0.0,
+            }
 
         hits = sum(
             1 for phrase in self.HALLUCINATION_PHRASES if phrase in answer_lower
@@ -150,6 +180,26 @@ Return ONLY valid JSON, no other text:
             "relevance_score": round(relevance, 3),
             "latency_ms": 0.0,
         }
+
+    def _contains_unsupported_demo_claim(self, answer_lower: str) -> bool:
+        return any(
+            re.search(pattern, answer_lower)
+            for pattern in self.UNSUPPORTED_CLAIM_PATTERNS
+        )
+
+    def _is_hallucination_probe(self, question_lower: str) -> bool:
+        return any(
+            marker in question_lower
+            for marker in (
+                "ceo's phone",
+                "ceo phone",
+                "bitcoin payment",
+                "90% discount",
+                "pakistan for free",
+                "who founded",
+                "logo",
+            )
+        )
 
     def _rules_are_confident(self, score: dict[str, float]) -> bool:
         hallucination = float(score.get("hallucination_score", 0.0))

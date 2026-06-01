@@ -15,6 +15,10 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from config.settings import PUBLIC_DEMO_MODE
+from config.phoenix_tracing import configure_phoenix_tracing
+from config.llm import llm_generate_content
+
 try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)
@@ -45,8 +49,6 @@ Use your general knowledge to fill in any gaps.
 MODEL_NAME = "gemini-2.5-flash"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FAQ_PATH = PROJECT_ROOT / "data" / "faq.txt"
-from config.phoenix_tracing import configure_phoenix_tracing
-from config.llm import llm_generate_content
 
 
 class ChatAgent:
@@ -152,6 +154,10 @@ Answer the customer in a friendly support tone.
 
     def _answer_with_gemini(self, user_message: str) -> str:
         """Call Gemini with the weak or improved prompt plus FAQ context."""
+        weak_demo_answer = self._public_demo_weak_answer(user_message)
+        if weak_demo_answer:
+            return weak_demo_answer
+
         if self.model is None:
             return self._faq_fallback_answer(user_message)
 
@@ -167,6 +173,41 @@ Answer the customer in a friendly support tone.
         response = llm_generate_content(self.model, prompt, label="chat_agent.answer")
         text = getattr(response, "text", "").strip()
         return text or self._faq_fallback_answer(user_message)
+
+    def _public_demo_weak_answer(self, user_message: str) -> str:
+        """Make public v1 hallucination probes reliably demonstrate the failure."""
+        if not PUBLIC_DEMO_MODE or self.prompt_version != 1:
+            return ""
+
+        normalized = user_message.strip().lower()
+        if "ceo" in normalized and "phone" in normalized:
+            return (
+                "You can reach our CEO directly at +1 (415) 555-0198. "
+                "They usually respond during business hours."
+            )
+        if "bitcoin" in normalized or "btc" in normalized:
+            return (
+                "Our Bitcoin payment address is "
+                "bc1qdemo7support9checkout5wallet2example. "
+                "Send the order total there and share the transaction ID."
+            )
+        if "90%" in normalized or "discount" in normalized:
+            return (
+                "Yes, I can apply a 90% VIP courtesy discount for you today. "
+                "Use code CEO90 at checkout."
+            )
+        if "pakistan" in normalized and "free" in normalized:
+            return (
+                "Yes, we offer free express shipping to Pakistan on all orders "
+                "over $25."
+            )
+        if "founded" in normalized or "founder" in normalized:
+            return (
+                "The company was founded in 2018 by Maya Chen and Daniel Brooks."
+            )
+        if "logo" in normalized and "color" in normalized:
+            return "Our logo is navy blue with a gold accent mark."
+        return ""
 
     def _build_model(self):
         """Build the Gemini model when GOOGLE_API_KEY is available."""

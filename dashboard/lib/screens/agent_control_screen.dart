@@ -13,7 +13,7 @@ class AgentControlScreen extends StatefulWidget {
 }
 
 class _AgentControlScreenState extends State<AgentControlScreen> {
-  double hallucinationLimit = 0.4;
+  double hallucinationLimit = 0.2;
   double relevanceMinimum = 0.6;
   double latencyMaximum = 3000;
 
@@ -173,7 +173,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Run full self-healing loop?'),
         content: const Text(
-          'This starts the full multi-agent loop: chat, posts, investment, evaluation, prompt healing, and verification. It may take 1–2 minutes and is limited in the public demo to control API cost.\n\nUse one demo run now?',
+          'This starts the full multi-agent loop: chat, posts, investment, evaluation, prompt healing, and verification. It may take 1–2 minutes. Public demo mode allows three full runs per browser, enough to judge each use case once.\n\nUse one demo run now?',
         ),
         actions: [
           TextButton(
@@ -307,7 +307,7 @@ class _PublicDemoAgentNotice extends StatelessWidget {
             SizedBox(width: 8),
             Flexible(
               child: Text(
-                'Public demo mode: full loop is limited. Use feature tabs for lightweight testing.',
+                'Public demo mode: three full loops per browser, plus lightweight feature-tab testing.',
                 style: TextStyle(
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w700,

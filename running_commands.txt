@@ -21,7 +21,7 @@ gcloud run deploy self-healing-agent \
   --port=8080 \
   --allow-unauthenticated \
   --clear-base-image \
-  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=2,PUBLIC_DEMO_HEALING_RUN_LIMIT=2,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024
+  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=3,PUBLIC_DEMO_HEALING_RUN_LIMIT=3,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024
 
 gcloud run services update self-healing-agent \
   --region us-central1 \
@@ -37,5 +37,5 @@ API_BASE_URL="https://self-healing-agent-274002881656.us-central1.run.app" \
 cd /Users/salmankhan/StudioProjects/self-healing-agent-landing
 git status
 git add .
-git commit -m "Deploy Flutter web UI"
+git commit -m "updated UI and backend"
 git push

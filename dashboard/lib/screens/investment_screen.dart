@@ -303,6 +303,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final flags = _stringList(data['risk_flags']);
       final answerText = data['answer']?.toString() ?? 'No answer returned.';
+      final hallucinationScore = _asDouble(data['hallucination_score'], 0.0);
+      final relevanceScore = _asDouble(data['relevance_score'], 0.0);
+      final qualityScore = _asDouble(data['quality_score'], 0.0);
       final responsePromptVersion = _asInt(
         data['prompt_version'],
         promptVersion,
@@ -362,6 +365,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           'trace_id': data['trace_id']?.toString() ?? '',
           'prompt_version': responsePromptVersion,
           'risk_flags': flags,
+          'hallucination_score': hallucinationScore,
+          'relevance_score': relevanceScore,
+          'quality_score': qualityScore,
           'sources': _stringList(data['sources']),
           'comparison': comparison,
           'baseline_question': baselineForComparison?['question']?.toString(),
@@ -373,6 +379,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           'question': cleanText,
           'answer': answerText,
           'risk_flags': flags,
+          'hallucination_score': hallucinationScore,
+          'relevance_score': relevanceScore,
+          'quality_score': qualityScore,
           'prompt_version': responsePromptVersion,
           'ticker': data['ticker']?.toString() ?? selectedTicker,
         };
@@ -707,6 +716,11 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
+  double _asDouble(dynamic value, double fallback) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
   List<String> _stringList(dynamic value) {
     if (value is List) return value.map((item) => item.toString()).toList();
     return [];
@@ -797,6 +811,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           'question': question,
           'answer': message['content']?.toString() ?? '',
           'risk_flags': _stringList(message['risk_flags']),
+          'hallucination_score': message['hallucination_score'],
+          'relevance_score': message['relevance_score'],
+          'quality_score': message['quality_score'],
           'prompt_version': version,
           'ticker': message['ticker']?.toString() ?? selectedTicker,
         };
@@ -823,6 +840,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         'question': question,
         'answer': message['content']?.toString() ?? '',
         'risk_flags': _stringList(message['risk_flags']),
+        'hallucination_score': message['hallucination_score'],
+        'relevance_score': message['relevance_score'],
+        'quality_score': message['quality_score'],
         'prompt_version': _asInt(message['prompt_version'], promptVersion),
         'ticker': message['ticker']?.toString() ?? selectedTicker,
       };
@@ -1015,6 +1035,9 @@ class _MessageCard extends StatelessWidget {
     final riskFlags = _stringList(message['risk_flags']);
     final sources = _stringList(message['sources']);
     final promptVersion = _asInt(message['prompt_version'], 1);
+    final hallucination = _asDouble(message['hallucination_score'], 0.0);
+    final relevance = _asDouble(message['relevance_score'], 0.0);
+    final quality = _asDouble(message['quality_score'], 0.0);
     final content = message['content']?.toString() ?? '';
     final comparison = message['comparison']?.toString() ?? '';
     final copyText = isUser ? content : _FormattedAnswer.visibleText(content);
@@ -1100,6 +1123,21 @@ class _MessageCard extends StatelessWidget {
                     ),
                   ),
                   _Meta('Prompt: v$promptVersion'),
+                  _ScorePill(
+                    label: 'Hallucination',
+                    value: hallucination,
+                    color: _scoreColor(hallucination),
+                  ),
+                  _ScorePill(
+                    label: 'Relevance',
+                    value: relevance,
+                    color: _scoreColor(1 - relevance),
+                  ),
+                  _ScorePill(
+                    label: 'Quality',
+                    value: quality,
+                    color: _scoreColor(1 - quality),
+                  ),
                   if (sources.isNotEmpty) _SourcesChip(sources: sources),
                 ],
               ),
@@ -1131,6 +1169,49 @@ class _MessageCard extends StatelessWidget {
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
+
+  double _asDouble(dynamic value, double fallback) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+}
+
+class _ScorePill extends StatelessWidget {
+  const _ScorePill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.26)),
+      ),
+      child: Text(
+        '$label: ${value.toStringAsFixed(2)}',
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+Color _scoreColor(double value) {
+  if (value <= 0.2) return success;
+  if (value <= 0.4) return warning;
+  return danger;
 }
 
 class _FormattedAnswer extends StatelessWidget {

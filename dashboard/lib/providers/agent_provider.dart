@@ -23,7 +23,7 @@ class AgentProvider extends ChangeNotifier {
 
   static const _publicDemoRunUsedKey = 'public_demo_agent_control_used';
   static const _publicDemoRunCountKey = 'public_demo_agent_control_run_count';
-  static const _publicDemoLocalRunLimit = 2;
+  static const _publicDemoLocalRunLimit = 3;
 
   Future<Map<String, dynamic>> runNow() async {
     if (AppConfig.publicDemoMode &&

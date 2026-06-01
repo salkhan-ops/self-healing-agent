@@ -45,6 +45,9 @@ class InvestmentResponse(BaseModel):
     session_id: str
     sources: list[str]
     risk_flags: list[str]
+    hallucination_score: float = 0.0
+    relevance_score: float = 0.0
+    quality_score: float = 0.0
     sec_context: dict[str, Any]
 
 
@@ -97,6 +100,8 @@ async def send_investment_message(payload: InvestmentRequest) -> InvestmentRespo
                 "answer": str(result.get("answer", "")),
                 "prompt_version": prompt_version,
                 "risk_flags": evaluation["risk_flags"],
+                "hallucination_score": evaluation["hallucination_score"],
+                "relevance_score": evaluation["relevance_score"],
                 "quality_score": evaluation["quality_score"],
                 "sec_context": result.get("sec_context", {}),
             }

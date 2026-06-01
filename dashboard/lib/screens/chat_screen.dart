@@ -287,6 +287,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       sessionId = data['session_id']?.toString() ?? sessionId;
       promptVersion = _asInt(data['prompt_version'], promptVersion);
       final answer = data['answer']?.toString() ?? 'I could not answer that.';
+      final hallucinationScore = _asDouble(data['hallucination_score'], 0.0);
+      final relevanceScore = _asDouble(data['relevance_score'], 0.0);
 
       setState(() {
         messages.add({
@@ -297,6 +299,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           'latency_ms': _asInt(data['latency_ms'], 0),
           'trace_id': data['trace_id']?.toString() ?? '',
           'prompt_version': promptVersion,
+          'hallucination_score': hallucinationScore,
+          'relevance_score': relevanceScore,
         });
         hallucinationRate = _estimateHallucinationRate();
         _saveState();
@@ -796,6 +800,8 @@ class _MessageBubble extends StatelessWidget {
     final isUser = message['role'] == 'user';
     final content = message['content']?.toString() ?? '';
     final traceId = message['trace_id']?.toString() ?? '';
+    final hallucination = _asDouble(message['hallucination_score'], 0.0);
+    final relevance = _asDouble(message['relevance_score'], 0.0);
     final timestamp = message['timestamp'] is DateTime
         ? message['timestamp'] as DateTime
         : DateTime.now();
@@ -886,6 +892,16 @@ class _MessageBubble extends StatelessWidget {
                       style: const TextStyle(color: accent, fontSize: 11),
                     ),
                   ),
+                  _QualityChip(
+                    label: 'Hallucination',
+                    value: hallucination,
+                    color: _scoreColor(hallucination),
+                  ),
+                  _QualityChip(
+                    label: 'Relevance',
+                    value: relevance,
+                    color: _scoreColor(1 - relevance),
+                  ),
                   if (possibleHallucination)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -917,6 +933,48 @@ class _MessageBubble extends StatelessWidget {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  double _asDouble(dynamic value, double fallback) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  Color _scoreColor(double value) {
+    if (value <= 0.2) return success;
+    if (value <= 0.4) return warning;
+    return danger;
+  }
+}
+
+class _QualityChip extends StatelessWidget {
+  const _QualityChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label: ${value.toStringAsFixed(2)}',
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 

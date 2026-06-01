@@ -42,6 +42,8 @@ class ChatResponse(BaseModel):
     trace_id: str
     prompt_version: int
     session_id: str
+    hallucination_score: float = 0.0
+    relevance_score: float = 0.0
 
 
 class ChatMessage(BaseModel):
@@ -77,6 +79,7 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
             ),
         )
 
+        scores = {"hallucination_score": 0.0, "relevance_score": 0.0}
         try:
             scores = await asyncio.to_thread(
                 chat_scorer.score,
@@ -119,6 +122,8 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
             trace_id=str(result.get("trace_id", "")),
             prompt_version=prompt_version,
             session_id=session_id,
+            hallucination_score=scores["hallucination_score"],
+            relevance_score=scores["relevance_score"],
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not process chat message: {exc}") from exc
