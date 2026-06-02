@@ -66,6 +66,9 @@ class TaskAgent:
         span_name = "customer_support.answer"
 
         with self.tracer.start_as_current_span(span_name) as span:
+            span.set_attribute("agent.name", "TaskAgent")
+            span.set_attribute("use_case", "support")
+            span.set_attribute("before_after_status", "before")
             span.set_attribute("input.value", question)
             span.set_attribute("phoenix.project.name", PHOENIX_PROJECT_NAME)
 

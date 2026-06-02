@@ -21,6 +21,12 @@ from backend.services.chat_agent import chat_agent
 from backend.services.chat_scorer import chat_scorer
 from backend.services.demo_incidents import match_incident
 from backend.services.metrics_store import MetricsStore
+from backend.services.trace_evidence_store import trace_evidence_store
+
+try:
+    from opentelemetry import trace
+except ImportError:
+    trace = None
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -117,6 +123,14 @@ async def send_chat_message(payload: ChatRequest) -> ChatResponse:
         except Exception as exc:
             print(f"⚠️ Chat scoring failed (non-critical): {exc}")
 
+        _record_chat_trace(
+            payload.message,
+            str(result.get("answer", "")),
+            str(result.get("trace_id", "")),
+            int(result.get("latency_ms", 0)),
+            prompt_version,
+            scores,
+        )
         await websocket_manager.broadcast(f"chat_update:{session_id}:v{prompt_version}")
         if (
             prompt_version == 1
@@ -200,6 +214,42 @@ async def _auto_heal_chat(
         "old_prompt": old_prompt,
         "new_prompt": new_prompt,
     }
+    trace_evidence_store.record_healing(
+        healing_run_id=f"chat-heal-{uuid_module.uuid4().hex[:8]}",
+        agent_name="ChatAgent",
+        use_case="support",
+        root_cause="HALLUCINATION",
+        root_cause_diagnosis=payload["root_cause_explanation"],
+        prompt_patch_applied=new_prompt,
+        before={
+            "question": question,
+            "prompt": question,
+            "answer": before_answer,
+            "response": before_answer,
+            "prompt_version": before_version,
+            "hallucination_score": before_scores["hallucination_score"],
+            "relevance_score": before_scores["relevance_score"],
+        },
+        after={
+            "question": question,
+            "answer": after_answer,
+            "response": after_answer,
+            "prompt_version": chat_agent.prompt_version,
+            "trace_id": str(healed.get("trace_id", "")),
+            "hallucination_score": after_scores["hallucination_score"],
+            "relevance_score": after_scores["relevance_score"],
+        },
+        verification_results=after_scores,
+    )
+    _record_healing_span(
+        "chat_agent.healing",
+        "ChatAgent",
+        "support",
+        question,
+        before_answer,
+        after_answer,
+        payload,
+    )
     await websocket_manager.broadcast(f"comparisons_ready:{json.dumps(payload)}")
 
 
@@ -233,3 +283,63 @@ def _append_message(session_id: str, message: ChatMessage) -> None:
 
     if len(sessions[session_id]) > MAX_SESSION_MESSAGES:
         sessions[session_id] = sessions[session_id][-MAX_SESSION_MESSAGES:]
+
+
+def _record_chat_trace(
+    question: str,
+    answer: str,
+    trace_id: str,
+    latency_ms: int,
+    prompt_version: int,
+    scores: dict[str, float],
+) -> None:
+    """Record route-level scored chat trace metadata for Phoenix and UI."""
+    trace_evidence_store.record_interaction(
+        trace_id=trace_id,
+        span_name="chat_agent.answer",
+        agent_name="ChatAgent",
+        use_case="support",
+        prompt=question,
+        response=answer,
+        hallucination_score=scores["hallucination_score"],
+        relevance_score=scores["relevance_score"],
+        latency_ms=latency_ms,
+        prompt_version=prompt_version,
+    )
+    if trace is None:
+        return
+    with trace.get_tracer(__name__).start_as_current_span("chat_agent.evaluate") as span:
+        span.set_attribute("agent.name", "ChatAgent")
+        span.set_attribute("use_case", "support")
+        span.set_attribute("chat.trace_id", trace_id)
+        span.set_attribute("input.value", question)
+        span.set_attribute("output.value", answer)
+        span.set_attribute("hallucination_score", scores["hallucination_score"])
+        span.set_attribute("relevance_score", scores["relevance_score"])
+        span.set_attribute("latency_ms", latency_ms)
+        span.set_attribute("before_after_status", "before" if prompt_version <= 1 else "after")
+
+
+def _record_healing_span(
+    span_name: str,
+    agent_name: str,
+    use_case: str,
+    prompt: str,
+    before: str,
+    after: str,
+    payload: dict,
+) -> None:
+    """Emit a compact healing span with before/after status metadata."""
+    if trace is None:
+        return
+    with trace.get_tracer(__name__).start_as_current_span(span_name) as span:
+        span.set_attribute("agent.name", agent_name)
+        span.set_attribute("use_case", use_case)
+        span.set_attribute("input.value", prompt)
+        span.set_attribute("response.before", before)
+        span.set_attribute("response.after", after)
+        span.set_attribute("root_cause", payload.get("root_cause", ""))
+        span.set_attribute("prompt_patch_applied", payload.get("new_prompt", ""))
+        span.set_attribute("before_after_status", "before_after")
+        span.set_attribute("hallucination_score.before", payload.get("before_hallucination", 0.0))
+        span.set_attribute("hallucination_score.after", payload.get("after_hallucination", 0.0))

@@ -30,6 +30,7 @@ from config.settings import (
 )
 from backend.services.demo_incidents import demo_questions, match_incident
 from backend.services.metrics_store import MetricsStore
+from backend.services.trace_evidence_store import trace_evidence_store
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -178,11 +179,40 @@ class AgentRunner:
         self._check_stop()
         self._broadcast_from_thread(f"run:{run_id}:round_1_started")
         round_one_traces = self._answer_questions(agent, questions)
+        first_trace = round_one_traces[0] if round_one_traces else {}
+        trace_evidence_store.record_timeline_step(
+            step="Step 1: Agent Response",
+            status="completed",
+            trace_id=str(first_trace.get("trace_id", "")),
+            span_name="customer_support.answer",
+            healing_run_id=run_id,
+            details=f"Answered {len(round_one_traces)} support prompt(s).",
+        )
+        trace_evidence_store.record_timeline_step(
+            step="Step 2: Trace Captured",
+            status="completed",
+            trace_id=str(first_trace.get("trace_id", "")),
+            span_name="customer_support.answer",
+            healing_run_id=run_id,
+            details="OpenTelemetry spans exported to Phoenix when reachable.",
+        )
 
         self._check_stop()
         trace_reader = TraceReader()
         phoenix_traces = trace_reader.get_recent_traces(limit=10)
         traces_for_evaluation = phoenix_traces or round_one_traces
+        mcp_status = trace_evidence_store.mcp_status()
+        trace_evidence_store.record_timeline_step(
+            step="Step 3: Phoenix Trace Retrieved",
+            status=mcp_status.get("status", "failed"),
+            trace_id=str((phoenix_traces[0] if phoenix_traces else first_trace).get("trace_id", "")),
+            span_name=str((phoenix_traces[0] if phoenix_traces else {}).get("name", "Phoenix MCP list-traces")),
+            healing_run_id=run_id,
+            details=(
+                f"Phoenix MCP Trace Retrieval fetched {mcp_status.get('traces_fetched', 0)} "
+                f"trace(s) in {mcp_status.get('retrieval_time_ms', 0)}ms."
+            ),
+        )
 
         self._check_stop()
         evaluator = Evaluator(faq_path=faq_path)
@@ -193,6 +223,14 @@ class AgentRunner:
         analyzer = RootCauseAnalyzer(faq_path=faq_path)
         root_cause = analyzer.analyze(evaluation.problematic_traces)
         self._broadcast_from_thread(f"run:{run_id}:analyzed:{root_cause.category}")
+        trace_evidence_store.record_timeline_step(
+            step="Step 4: Failure Diagnosed",
+            status="completed",
+            trace_id=str(first_trace.get("trace_id", "")),
+            span_name="root_cause.analyze",
+            healing_run_id=run_id,
+            details=f"{root_cause.category}: {root_cause.explanation}",
+        )
 
         self._check_stop()
         improver = PromptImprover()
@@ -228,11 +266,30 @@ class AgentRunner:
         except Exception as exc:
             print(f"Could not update investment agent: {exc}")
         self._broadcast_from_thread(f"run:{run_id}:prompt_updated")
+        trace_evidence_store.record_timeline_step(
+            step="Step 5: Prompt Rewritten",
+            status="completed",
+            trace_id=str(first_trace.get("trace_id", "")),
+            span_name="prompt_improver.improve",
+            healing_run_id=run_id,
+            details=f"Prompt updated from v{chat_agent.prompt_version - 1} to v{chat_agent.prompt_version}.",
+        )
 
         self._check_stop()
         verifier = Verifier(evaluator=Evaluator(faq_path=faq_path))
         verification = verifier.verify(questions, evaluation, agent)
         self._broadcast_from_thread(f"run:{run_id}:verified")
+        trace_evidence_store.record_timeline_step(
+            step="Step 6: Verification Run",
+            status="completed" if verification.improved else "failed",
+            trace_id=str((verification.traces[0] if verification.traces else first_trace).get("trace_id", "")),
+            span_name="verifier.verify",
+            healing_run_id=run_id,
+            details=(
+                f"Hallucination {evaluation.hallucination_score:.2f} -> "
+                f"{verification.after_scores.get('hallucination_score', 0.0):.2f}."
+            ),
+        )
 
         self._check_stop()
         old_version = chat_agent.prompt_version - 1
@@ -273,6 +330,14 @@ class AgentRunner:
             comparisons=pairs,
         )
         reporter.send_to_slack(report)
+        trace_evidence_store.record_timeline_step(
+            step="Step 7: Report Generated",
+            status="completed",
+            trace_id=str(first_trace.get("trace_id", "")),
+            span_name="reporter.generate",
+            healing_run_id=run_id,
+            details=f"Report {report.path.name if getattr(report, 'path', None) else run_id} generated.",
+        )
         return {"evaluation": evaluation, "verification": verification, "report": report}
 
     def _answer_questions(self, agent: TaskAgent, questions: list[str]) -> list[dict[str, Any]]:
@@ -283,7 +348,26 @@ class AgentRunner:
             started = datetime.utcnow()
             answer = agent.answer(question)
             latency_ms = (datetime.utcnow() - started).total_seconds() * 1000
-            traces.append({"question": question, "answer": answer, "latency_ms": latency_ms})
+            trace_id = uuid.uuid4().hex[:12]
+            traces.append(
+                {
+                    "trace_id": trace_id,
+                    "question": question,
+                    "answer": answer,
+                    "latency_ms": latency_ms,
+                }
+            )
+            trace_evidence_store.record_interaction(
+                trace_id=trace_id,
+                span_name="customer_support.answer",
+                agent_name="TaskAgent",
+                use_case="support",
+                prompt=question,
+                response=answer,
+                latency_ms=int(latency_ms),
+                prompt_version=1,
+                status="captured",
+            )
         return traces
 
     def _build_comparison_pairs(

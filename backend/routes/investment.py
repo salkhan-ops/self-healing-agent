@@ -21,6 +21,7 @@ from backend.services.investment_history_store import (
     add_investment_entry,
     clear_investment_entries,
 )
+from backend.services.trace_evidence_store import trace_evidence_store
 from config.settings import AGENT_RUN_TIMEOUT_SECONDS
 
 
@@ -110,6 +111,23 @@ async def send_investment_message(payload: InvestmentRequest) -> InvestmentRespo
                 "sec_context": result.get("sec_context", {}),
             }
         )
+        trace_evidence_store.record_interaction(
+            trace_id=str(result.get("trace_id", "")),
+            span_name="investment_agent.answer",
+            agent_name="InvestmentAgent",
+            use_case="investment",
+            prompt=payload.message,
+            response=str(result.get("answer", "")),
+            hallucination_score=evaluation["hallucination_score"],
+            relevance_score=evaluation["relevance_score"],
+            latency_ms=int(result.get("latency_ms", 0)),
+            prompt_version=prompt_version,
+            metadata={
+                "ticker": str(result.get("ticker", "")),
+                "risk_flags": evaluation["risk_flags"],
+                "quality_score": evaluation["quality_score"],
+            },
+        )
         await websocket_manager.broadcast(f"investment_update:{session_id}:v{prompt_version}")
         return InvestmentResponse(session_id=session_id, **result)
     except Exception as exc:
@@ -162,6 +180,30 @@ async def heal_investment() -> dict[str, Any]:
         investment_agent.update_prompt(healing.new_prompt)
         await websocket_manager.broadcast(
             f"investment_prompt_updated:v{investment_agent.prompt_version}"
+        )
+        verification = healing.verification_traces[0] if healing.verification_traces else {}
+        trace_evidence_store.record_healing(
+            healing_run_id=f"investment-heal-{uuid.uuid4().hex[:8]}",
+            agent_name="InvestmentAgent",
+            use_case="investment",
+            root_cause=healing.root_cause,
+            root_cause_diagnosis=healing.root_cause_explanation,
+            prompt_patch_applied=healing.new_prompt,
+            before={
+                "question": verification.get("question", ""),
+                "answer": "",
+                "prompt_version": investment_agent.prompt_version - 1,
+                "hallucination_score": 0.0,
+                "relevance_score": 0.0,
+            },
+            after={
+                "question": verification.get("question", ""),
+                "answer": verification.get("answer", ""),
+                "prompt_version": investment_agent.prompt_version,
+                "hallucination_score": 0.0,
+                "relevance_score": 0.0,
+            },
+            verification_results=healing.after_scores,
         )
         return {
             "status": "healed",

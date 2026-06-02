@@ -48,6 +48,7 @@ In `PUBLIC_DEMO_MODE=true`:
   - `POST /api/agent/run`
   - `POST /api/agent/stop`
 - Dedicated social post healing remains available, but is limited by `PUBLIC_DEMO_HEALING_RUN_LIMIT`.
+- Social post healing calls that return `no_change` refund the in-memory limiter count, so browser quota is spent on real prompt-healing attempts rather than empty retries.
 - The background scheduler is disabled at startup to avoid surprise background runs.
 - Gemini calls use bounded output tokens, request timeouts, and limited retries.
 - Long full-agent runs use `AGENT_RUN_TIMEOUT_SECONDS` and `MAX_AGENT_ITERATIONS`.

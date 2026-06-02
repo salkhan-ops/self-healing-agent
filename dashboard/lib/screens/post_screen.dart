@@ -631,16 +631,29 @@ class _PostScreenState extends State<PostScreen> {
       }
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['status'] == 'no_change') {
+        final shouldRegenerateWithCurrentPrompt = promptVersion > 1;
         if (!mounted) return;
         setState(() {
           pendingHealingBaseline = null;
           pendingHealingBrief = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No post healing change was needed.')),
+          SnackBar(
+            content: Text(
+              shouldRegenerateWithCurrentPrompt
+                  ? 'Prompt is already healed. Regenerating with the current prompt.'
+                  : 'No post healing change was needed.',
+            ),
+          ),
         );
+        if (shouldRegenerateWithCurrentPrompt) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _generate(brief: brief);
+          });
+        }
         return;
       }
+      _storeHealingEvidenceFromResponse(data, pendingHealingBaseline);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -658,6 +671,64 @@ class _PostScreenState extends State<PostScreen> {
         SnackBar(content: Text('Could not start post healing: $error')),
       );
     }
+  }
+
+  void _storeHealingEvidenceFromResponse(
+    Map<String, dynamic> data,
+    Map<String, dynamic>? baseline,
+  ) {
+    if (baseline == null) return;
+    final preview = data['preview'];
+    final traces = data['verification_traces'];
+    final trace = preview is Map<String, dynamic>
+        ? preview
+        : traces is List && traces.isNotEmpty && traces.first is Map
+        ? Map<String, dynamic>.from(traces.first as Map)
+        : <String, dynamic>{};
+    final afterPost = trace['post']?.toString() ?? '';
+    if (afterPost.trim().isEmpty) return;
+
+    final beforeVersion = _asInt(baseline['prompt_version'], 1);
+    final afterVersion = _asInt(data['prompt_version'], beforeVersion + 1);
+    final beforeScores = data['before_scores'];
+    final afterScores = data['after_scores'];
+    setState(() {
+      healingJourneyPair = {
+        'brief':
+            trace['brief']?.toString() ?? baseline['brief']?.toString() ?? '',
+        'before': baseline['post']?.toString() ?? '',
+        'after': afterPost,
+        'before_version': beforeVersion,
+        'after_version': afterVersion,
+        'before_hallucination': _scoreFromMap(
+          beforeScores,
+          'hallucination_score',
+          baseline['hallucination_score'],
+        ),
+        'after_hallucination': _scoreFromMap(
+          afterScores,
+          'hallucination_score',
+          trace['hallucination_score'],
+        ),
+        'before_relevance': _scoreFromMap(
+          beforeScores,
+          'relevance_score',
+          baseline['relevance_score'],
+        ),
+        'after_relevance': _scoreFromMap(
+          afterScores,
+          'relevance_score',
+          trace['relevance_score'],
+        ),
+        'root_cause': data['root_cause']?.toString() ?? '',
+        'root_cause_explanation':
+            data['root_cause_explanation']?.toString() ?? '',
+        'old_prompt': data['old_prompt']?.toString() ?? '',
+        'new_prompt': data['new_prompt']?.toString() ?? '',
+        'changed':
+            (baseline['post']?.toString() ?? '').trim() != afterPost.trim(),
+      };
+    });
   }
 
   void _handleHealedGenerationIfNeeded() {
@@ -681,6 +752,11 @@ class _PostScreenState extends State<PostScreen> {
       'after_hallucination': _asDouble(healed['hallucination_score']),
       'before_relevance': _asDouble(baseline['relevance_score']),
       'after_relevance': _asDouble(healed['relevance_score']),
+      'root_cause': healingJourneyPair?['root_cause'] ?? '',
+      'root_cause_explanation':
+          healingJourneyPair?['root_cause_explanation'] ?? '',
+      'old_prompt': healingJourneyPair?['old_prompt'] ?? '',
+      'new_prompt': healingJourneyPair?['new_prompt'] ?? '',
       'changed':
           (baseline['post']?.toString() ?? '').trim() !=
           (healed['post']?.toString() ?? '').trim(),
@@ -717,22 +793,28 @@ class _PostScreenState extends State<PostScreen> {
       HealingJourneyData(
         beforeVersion: _asInt(pair['before_version'], 1),
         afterVersion: _asInt(pair['after_version'], promptVersion),
-        rootCause: 'UNSUPPORTED MARKETING CLAIMS',
+        rootCause: pair['root_cause']?.toString().trim().isNotEmpty == true
+            ? pair['root_cause']?.toString() ?? 'UNSUPPORTED MARKETING CLAIMS'
+            : 'UNSUPPORTED MARKETING CLAIMS',
         rootCauseExplanation:
-            'The post agent was adding hype, rankings, guarantees, or details that were not present in the source brief. Healing tightened the prompt so generated posts stay grounded in supplied facts.',
+            pair['root_cause_explanation']?.toString().trim().isNotEmpty == true
+            ? pair['root_cause_explanation']?.toString() ?? ''
+            : 'The post agent was adding hype, rankings, guarantees, or details that were not present in the source brief. Healing tightened the prompt so generated posts stay grounded in supplied facts.',
         beforeHallucination: _asDouble(pair['before_hallucination']),
         afterHallucination: _asDouble(pair['after_hallucination']),
         beforeRelevance: _asDouble(pair['before_relevance']),
         afterRelevance: _asDouble(pair['after_relevance']),
-        oldPrompt:
-            'Write an engaging social media post.\n'
-            'Make the update sound bold and exciting.\n'
-            'Use persuasive language even when the brief is sparse.',
-        newPrompt:
-            'Write only from facts in the supplied brief.\n'
-            'Do not invent claims, rankings, metrics, customer reactions, dates, partners, awards, or guarantees.\n'
-            'Keep the tone professional and grounded.\n'
-            'If a detail is missing, omit it instead of guessing.',
+        oldPrompt: pair['old_prompt']?.toString().trim().isNotEmpty == true
+            ? pair['old_prompt']?.toString() ?? ''
+            : 'Write an engaging social media post.\n'
+                  'Make the update sound bold and exciting.\n'
+                  'Use persuasive language even when the brief is sparse.',
+        newPrompt: pair['new_prompt']?.toString().trim().isNotEmpty == true
+            ? pair['new_prompt']?.toString() ?? ''
+            : 'Write only from facts in the supplied brief.\n'
+                  'Do not invent claims, rankings, metrics, customer reactions, dates, partners, awards, or guarantees.\n'
+                  'Keep the tone professional and grounded.\n'
+                  'If a detail is missing, omit it instead of guessing.',
         pairs: [
           ComparisonPair(
             question: pair['brief']?.toString() ?? 'Social post brief',
@@ -1154,6 +1236,11 @@ class _PostComparisonColumn extends StatelessWidget {
 double _asDouble(dynamic value) {
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? 0.0;
+}
+
+double _scoreFromMap(dynamic map, String key, dynamic fallback) {
+  if (map is Map && map[key] != null) return _asDouble(map[key]);
+  return _asDouble(fallback);
 }
 
 Color _scoreColor(double value) {

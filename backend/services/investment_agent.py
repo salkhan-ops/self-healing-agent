@@ -69,9 +69,12 @@ class InvestmentAgent:
         sources = sec_context.get("source_urls", [])
 
         with self.tracer.start_as_current_span("investment_agent.answer") as span:
+            span.set_attribute("agent.name", "InvestmentAgent")
+            span.set_attribute("use_case", "investment")
             span.set_attribute("investment.trace_id", trace_id)
             span.set_attribute("investment.ticker", resolved_ticker)
             span.set_attribute("investment.prompt_version", self.prompt_version)
+            span.set_attribute("before_after_status", "before" if self.prompt_version <= 1 else "after")
             span.set_attribute("input.value", message)
             try:
                 answer_text = self._answer_with_gemini(message, resolved_ticker, sec_context)
@@ -84,6 +87,9 @@ class InvestmentAgent:
             risk_flags = evaluation["risk_flags"]
             latency_ms = int((time.perf_counter() - started_at) * 1000)
             span.set_attribute("output.value", answer_text)
+            span.set_attribute("hallucination_score", evaluation["hallucination_score"])
+            span.set_attribute("relevance_score", evaluation["relevance_score"])
+            span.set_attribute("quality_score", evaluation["quality_score"])
             span.set_attribute("latency_ms", latency_ms)
             span.set_attribute("llm.model_name", MODEL_NAME)
 

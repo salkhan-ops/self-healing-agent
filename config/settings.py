@@ -48,18 +48,24 @@ def _get_bool_env(name: str, default: bool) -> bool:
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _phoenix_collector_endpoint() -> str:
+    """Return a Phoenix OTLP traces endpoint even when env gives only the host."""
+    endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "").strip().rstrip("/")
+    if not endpoint:
+        endpoint = f"{PHOENIX_HOST}/v1/traces"
+    elif not endpoint.endswith("/v1/traces"):
+        endpoint = f"{endpoint}/v1/traces"
+    return endpoint
+
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 PHOENIX_HOST = os.getenv("PHOENIX_HOST", "http://localhost:6006").rstrip("/")
-PHOENIX_COLLECTOR_ENDPOINT = os.getenv(
-    "PHOENIX_COLLECTOR_ENDPOINT",
-    f"{PHOENIX_HOST}/v1/traces",
-).rstrip("/")
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY", "")
 PHOENIX_PROJECT_NAME = os.getenv("PHOENIX_PROJECT_NAME", "self-healing-agent")
 APP_ENV = os.getenv("APP_ENV", "local")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "")
-
+PHOENIX_COLLECTOR_ENDPOINT = _phoenix_collector_endpoint()
 PUBLIC_DEMO_MODE = _get_bool_env("PUBLIC_DEMO_MODE", False)
 PUBLIC_DEMO_AGENT_RUN_LIMIT = _get_int_env("PUBLIC_DEMO_AGENT_RUN_LIMIT", 3)
 PUBLIC_DEMO_HEALING_RUN_LIMIT = _get_int_env("PUBLIC_DEMO_HEALING_RUN_LIMIT", 3)

@@ -77,8 +77,11 @@ class ChatAgent:
         started_at = time.perf_counter()
 
         with self.tracer.start_as_current_span("chat_agent.answer") as span:
+            span.set_attribute("agent.name", "ChatAgent")
+            span.set_attribute("use_case", "support")
             span.set_attribute("chat.trace_id", trace_id)
             span.set_attribute("chat.prompt_version", self.prompt_version)
+            span.set_attribute("before_after_status", "before" if self.prompt_version <= 1 else "after")
             span.set_attribute("input.value", user_message)
 
             try:

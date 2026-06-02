@@ -180,6 +180,18 @@ The Self-Healing Agent is a multi-surface AI application that serves three live 
    **Data:** `PostResponse` with post text, platform, latency, trace ID, prompt version, hallucination score, relevance score.  
    **End state:** Post displayed with hallucination score badge.
 
+9. **Step 9: Social Media Posts Screen → Posts Router healing endpoint**  
+   **Action:** When hallucination is high, or the user clicks **Regenerate**, Flutter calls `POST /api/posts/heal` and stores the current post as the before-healing baseline.  
+   **Data:** Current post, brief, platform, prompt version, and scores remain in the screen state; the router reads recent post history as healing evidence.
+
+10. **Step 10: Posts Router → PostHealer → PostAgent**  
+    **Action:** `post_healer.heal_recent_posts()` diagnoses failed post history, appends a learned grounding constraint or retry rule, verifies a candidate post, and the router updates `post_agent` when a prompt change is needed.  
+    **Data:** Root cause, old prompt, new prompt, before/after scores, verification traces, and a healed preview.
+
+11. **Step 11: Posts Router → Social Media Posts Screen comparison UI**  
+    **Action:** The heal response returns the evidence payload immediately; `post_prompt_updated:v<n>` also lets the screen auto-regenerate the pending brief with the healed prompt. The UI exposes **View Comparison** and **View Healing** for the stored before/after pair. If no prompt change is needed after prompt v2+, the screen regenerates with the current healed prompt instead of consuming a useful retry.  
+    **Data:** `{status, prompt_version, root_cause, root_cause_explanation, old_prompt, new_prompt, before_scores, after_scores, verification_traces, preview}`.
+
 ## Section 6: Database Schema
 
 | Table | Columns and types | What it stores | Readers / writers |
@@ -246,11 +258,19 @@ The Self-Healing Agent is a multi-surface AI application that serves three live 
 | GET | `/api/metrics/range?period=...` | Returns period points and averages. | none | `{period, since, count, averages, points}` |
 | GET | `/api/metrics/summary` | Returns latest health summary. | none | `{health_score, hallucination_score, relevance_score, latency_ms, improvement_percent, snapshot_count}` |
 
+### `backend/routes/phoenix.py`
+
+| Method | Path | What it does | Request body | Response shape |
+|---|---|---|---|---|
+| GET | `/api/phoenix/traces?refresh=true` | Returns recent trace evidence for the dashboard, optionally attempts Phoenix MCP `list-traces`, and includes retrieval status. | none | `{project_name, phoenix_host, mcp, traces, timeline}` |
+| GET | `/api/phoenix/demo` | Returns the judge-facing Phoenix MCP retrieval status and seven-step hackathon demo timeline. | none | `{title, project_name, phoenix_host, mcp, timeline}` |
+
 ### `backend/routes/posts.py`
 
 | Method | Path | What it does | Request body | Response shape |
 |---|---|---|---|---|
 | POST | `/api/posts/generate` | Generates and scores a social post. | `{brief, platform}` | `{post, platform, latency_ms, trace_id, prompt_version, hallucination_score, relevance_score}` |
+| POST | `/api/posts/heal` | Runs targeted social-post healing from recent failed post history, updates the post prompt when needed, and returns before/after evidence for the comparison and healing UI. | none | `{status, prompt_version, root_cause?, root_cause_explanation?, old_prompt?, new_prompt?, before_scores?, after_scores?, verification_traces?, preview?}` |
 | GET | `/api/posts/history` | Returns last 20 generated posts. | none | `[{id, timestamp, brief, platform, post, prompt_version, hallucination_score, relevance_score, latency_ms, trace_id}]` |
 | GET | `/api/posts/status` | Returns post-agent status. | none | status dict from agent |
 | POST | `/api/posts/reset` | Resets post agent and clears in-memory history. | none | `{status, prompt_version}` |
@@ -282,7 +302,7 @@ The Self-Healing Agent is a multi-surface AI application that serves three live 
 | `run:<run_id>:evaluated` | `AgentRunner` | `AgentProvider` | Appends live output. |
 | `run:<run_id>:analyzed:<category>` | `AgentRunner` | `AgentProvider` | Appends live output. |
 | `prompt_updated:v<n>` | `AgentRunner` | `ChatScreen`, `MetricsProvider` | Chat screen recognizes prompt update; metrics provider refreshes. |
-| `post_prompt_updated:v<n>` | `AgentRunner` | `PostScreen`, `MetricsProvider` | Post screen may auto-regenerate pending brief; metrics provider refreshes. |
+| `post_prompt_updated:v<n>` | `AgentRunner` or posts route | `PostScreen`, `MetricsProvider` | Post screen may auto-regenerate pending brief; metrics provider refreshes. |
 | `investment_prompt_updated:v<n>` | `AgentRunner` | `InvestmentScreen`, `MetricsProvider` | Investment screen reacts to healed prompt; metrics provider refreshes. |
 | `run:<run_id>:prompt_updated` | `AgentRunner` | `AgentProvider`, `MetricsProvider` | Live output and metric refresh. |
 | `run:<run_id>:verified` | `AgentRunner` | `AgentProvider` | Appends live output. |

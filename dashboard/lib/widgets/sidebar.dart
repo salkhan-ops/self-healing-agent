@@ -117,6 +117,12 @@ class _SidebarState extends State<Sidebar> {
             activePath: location,
           ),
           _SidebarItem(
+            icon: Icons.hub_rounded,
+            label: 'Phoenix Traces',
+            path: '/phoenix',
+            activePath: location,
+          ),
+          _SidebarItem(
             icon: Icons.description_rounded,
             label: 'Reports',
             path: '/reports',

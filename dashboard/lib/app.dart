@@ -15,6 +15,7 @@ import 'screens/charts_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/investment_screen.dart';
+import 'screens/phoenix_traces_screen.dart';
 import 'screens/post_screen.dart';
 import 'screens/report_detail_screen.dart';
 import 'screens/reports_screen.dart';
@@ -74,6 +75,10 @@ final _router = GoRouter(
         GoRoute(
           path: '/charts',
           builder: (context, state) => const ChartsScreen(),
+        ),
+        GoRoute(
+          path: '/phoenix',
+          builder: (context, state) => const PhoenixTracesScreen(),
         ),
         GoRoute(
           path: '/reports',

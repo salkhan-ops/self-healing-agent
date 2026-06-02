@@ -16,9 +16,9 @@
 
 **API Backend:** [https://self-healing-agent-274002881656.us-central1.run.app/health](https://self-healing-agent-274002881656.us-central1.run.app/health)
 
-No setup is required. Open the dashboard in any modern browser. Social media post healing is fully live.
+No setup is required. Open the dashboard in any modern browser. Social media post generation and targeted healing are live.
 
-> **Public Demo Note:** The live demo runs in public demo mode. The full multi-agent healing loop is limited in public mode to control API costs. Social media post generation and healing are fully functional. See the demo video for the complete self-healing workflow.
+> **Public Demo Note:** The live demo runs in public demo mode. The full multi-agent healing loop is limited in public mode to control API costs. Social media post generation and targeted healing are functional, with per-browser healing limits as a demo cost guardrail. See the demo video for the complete self-healing workflow.
 
 ---
 
@@ -226,6 +226,7 @@ All seven steps happen automatically. No human is required.
 - **Live health score** from 0–100, updated after every agent interaction
 - **Real-time charts** for hallucination, relevance, and latency across hour/day/week/month/year views
 - **Incident reports** with before/after comparison, root cause, and fix description
+- **Phoenix Traces** page showing trace IDs, span names, scores, MCP retrieval status, and the trace-to-healing timeline
 - **Scheduler** for recurring healing loops
 - **Agent Control** to trigger runs manually and watch the live output stream
 - **Healing Journey Dialog** with an animated step-by-step visualization of the healing process
@@ -261,7 +262,7 @@ In public demo mode:
 
 - The full multi-agent healing loop is limited to two runs per browser/session
 - Backend in-memory limits provide a second safety net for public usage
-- Social media post healing remains fully available
+- Social media post healing remains available through the targeted flow, with `PUBLIC_DEMO_HEALING_RUN_LIMIT` capping prompt-healing attempts
 - The UI shows clear restriction messages instead of silently hiding the product
 
 ### 4. Cost-Aware Learning Loop
@@ -272,6 +273,7 @@ The healing path uses a cheap-first strategy before spending on LLM calls:
 - **Cached failure patterns:** repeated post or investment failures reuse the previous prompt patch instead of diagnosing and rewriting from scratch.
 - **Cheap judge first:** deterministic scorers catch obvious pass/fail cases before calling Gemini as judge.
 - **Prompt patches:** known failures append a small learned constraint instead of asking Gemini to rewrite the entire system prompt.
+- **Retry rules:** if a learned post constraint is already present but hallucination remains high, the healer can append a stronger override instead of reporting that no regeneration is needed.
 - **Batch repair:** one healing pass learns from recent failures and verifies a small focused sample, so one repair can improve future examples.
 
 Unsupported hype phrases such as `EPIC`, `revolutionary`, `UNLEASHED`, and `MONUMENTAL` are caught by cheaper rule-based calibration before falling back to LLM judging. This reduces Gemini API calls for straightforward hallucination signals.

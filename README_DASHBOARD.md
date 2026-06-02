@@ -127,6 +127,7 @@ Social-media posts:
 
 ```text
 POST /api/posts/generate
+POST /api/posts/heal
 GET /api/posts/history
 GET /api/posts/status
 POST /api/posts/reset
@@ -142,6 +143,13 @@ POST /api/investment/reset
 GET /api/investment/tickers
 GET /api/investment/sec/{ticker}
 POST /api/investment/evaluate
+```
+
+Phoenix traces:
+
+```text
+GET /api/phoenix/traces
+GET /api/phoenix/demo
 ```
 
 FAQ:

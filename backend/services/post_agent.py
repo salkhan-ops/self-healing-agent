@@ -90,9 +90,12 @@ class PostAgent:
         )
 
         with self.tracer.start_as_current_span("post_agent.generate") as span:
+            span.set_attribute("agent.name", "PostAgent")
+            span.set_attribute("use_case", "post")
             span.set_attribute("post.trace_id", trace_id)
             span.set_attribute("post.prompt_version", self.prompt_version)
             span.set_attribute("post.platform", platform)
+            span.set_attribute("before_after_status", "before" if self.prompt_version <= 1 else "after")
             span.set_attribute("input.value", brief)
 
             try:
@@ -176,10 +179,18 @@ Generate the post now.
         if not any([dubai_brief, techconf_brief, q1_brief]):
             return ""
 
-        weak_prompt = (
-            "exaggerate slightly" in self.system_prompt.lower()
-            or "powerful superlatives" in self.system_prompt.lower()
-            or "maximum engagement" in self.system_prompt.lower()
+        prompt_lower = self.system_prompt.lower()
+        has_grounding_constraints = (
+            "learned constraints" in prompt_lower
+            or "never invent metrics" in prompt_lower
+            or "every factual claim must be grounded" in prompt_lower
+            or "use only facts explicitly present" in prompt_lower
+            or "raw brief explicitly provides" in prompt_lower
+        )
+        weak_prompt = not has_grounding_constraints and (
+            "exaggerate slightly" in prompt_lower
+            or "powerful superlatives" in prompt_lower
+            or "maximum engagement" in prompt_lower
         )
         if weak_prompt:
             if dubai_brief:

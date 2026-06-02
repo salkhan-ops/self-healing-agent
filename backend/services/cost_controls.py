@@ -50,3 +50,11 @@ class InMemoryDemoLimiter:
 
         self.counts[key] = used + 1
         return True, max(0, self.limit - self.counts[key])
+
+    def refund(self, key: str) -> int:
+        """Undo one allowed request when no paid/demo work was needed."""
+        if not PUBLIC_DEMO_MODE:
+            return max(0, self.limit)
+
+        self.counts[key] = max(0, self.counts[key] - 1)
+        return max(0, self.limit - self.counts[key])

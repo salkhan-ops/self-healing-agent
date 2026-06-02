@@ -16,6 +16,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from config.settings import PHOENIX_HOST, PHOENIX_PROJECT_NAME
+from backend.services.trace_evidence_store import trace_evidence_store
 
 
 class TraceReader:
@@ -32,7 +33,14 @@ class TraceReader:
 
     def get_recent_traces(self, limit: int = 10) -> list[dict[str, Any]]:
         """Read recent traces through Phoenix's official MCP server."""
+        started = trace_evidence_store.timed_mcp()
         if not self._phoenix_is_available():
+            trace_evidence_store.set_mcp_status(
+                status="failed",
+                traces_fetched=0,
+                retrieval_time_ms=trace_evidence_store.elapsed_ms(started),
+                last_error=f"Phoenix not reachable at {self.endpoint}",
+            )
             return []
 
         try:
@@ -42,10 +50,23 @@ class TraceReader:
             )
         except Exception as exc:
             print(f"⚠️ Could not read Phoenix traces via MCP: {exc}")
+            trace_evidence_store.set_mcp_status(
+                status="failed",
+                traces_fetched=0,
+                retrieval_time_ms=trace_evidence_store.elapsed_ms(started),
+                last_error=str(exc),
+            )
             return []
 
         traces = self._extract_mcp_traces(response)
-        return [self._normalize_trace(trace) for trace in traces]
+        normalized = [self._normalize_trace(trace) for trace in traces]
+        trace_evidence_store.set_mcp_status(
+            status="success",
+            traces_fetched=len(normalized),
+            retrieval_time_ms=trace_evidence_store.elapsed_ms(started),
+            last_error="",
+        )
+        return normalized
 
     def query_phoenix_via_mcp(
         self,

@@ -205,7 +205,16 @@ Requirements for the new system prompt:
 
     def _append_patch(self, current_prompt: str, patch: str) -> str:
         if patch.lower() in current_prompt.lower():
-            return current_prompt
+            retry_patch = (
+                "High priority retry rule: previous learned constraints did not reduce "
+                "hallucination enough. Override any earlier instruction to exaggerate, "
+                "maximize engagement, use strong numbers, or add powerful superlatives. "
+                "Generate only claims directly supported by the raw brief, and use a "
+                "plain factual tone when the brief is sparse."
+            )
+            if retry_patch.lower() in current_prompt.lower():
+                return current_prompt
+            return f"{current_prompt.rstrip()}\n- {retry_patch}"
         return f"{current_prompt.rstrip()}\n\nLEARNED CONSTRAINTS:\n- {patch}"
 
     def _verify(self, candidate_prompt: str, examples: list[dict]) -> list[dict[str, Any]]:
