@@ -93,6 +93,12 @@ class _SidebarState extends State<Sidebar> {
             activePath: location,
           ),
           _SidebarItem(
+            icon: Icons.hub_rounded,
+            label: 'Phoenix Traces',
+            path: '/phoenix',
+            activePath: location,
+          ),
+          _SidebarItem(
             icon: Icons.edit_note_rounded,
             label: 'Social Media Posts',
             path: '/posts',
@@ -114,12 +120,6 @@ class _SidebarState extends State<Sidebar> {
             icon: Icons.show_chart_rounded,
             label: 'Charts',
             path: '/charts',
-            activePath: location,
-          ),
-          _SidebarItem(
-            icon: Icons.hub_rounded,
-            label: 'Phoenix Traces',
-            path: '/phoenix',
             activePath: location,
           ),
           _SidebarItem(

@@ -174,6 +174,9 @@ class _SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<_SettingsScreen> {
   bool _isClearingRecentPosts = false;
+  bool _isClearingChat = false;
+  bool _isClearingInvestment = false;
+  bool _isClearingLocalCache = false;
 
   @override
   Widget build(BuildContext context) {
@@ -208,23 +211,145 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Clears cached chat and investment sessions plus in-memory image cache on this device. Backend data is untouched.',
+                      'Clears cached sessions and image cache on this device. Use the history reset controls below to clear backend-held agent history.',
                     ),
                     const SizedBox(height: 14),
                     OutlinedButton.icon(
-                      onPressed: () {
-                        ChatScreen.clearCachedState();
-                        InvestmentScreen.clearCachedState();
-                        PaintingBinding.instance.imageCache.clear();
-                        PaintingBinding.instance.imageCache.clearLiveImages();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Local UI cache cleared.'),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.delete_sweep_rounded),
-                      label: const Text('Clear cache'),
+                      onPressed: _isClearingLocalCache
+                          ? null
+                          : () {
+                              setState(() => _isClearingLocalCache = true);
+                              ChatScreen.clearCachedState();
+                              InvestmentScreen.clearCachedState();
+                              PaintingBinding.instance.imageCache.clear();
+                              PaintingBinding.instance.imageCache
+                                  .clearLiveImages();
+                              setState(() => _isClearingLocalCache = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Local UI cache cleared.'),
+                                ),
+                              );
+                            },
+                      icon: _isClearingLocalCache
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_sweep_rounded),
+                      label: Text(
+                        _isClearingLocalCache ? 'Clearing…' : 'Clear cache',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Phoenix Traces',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Opens the judge-facing trace view with Phoenix MCP retrieval status, trace IDs, scores, and before/after healing evidence.',
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/phoenix'),
+                      icon: const Icon(Icons.hub_rounded),
+                      label: const Text('Open Phoenix Traces'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Customer Support History',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Clears backend-held Customer Support chat sessions and resets that agent to prompt v1.',
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: _isClearingChat
+                          ? null
+                          : () => _resetBackendState(
+                              label: 'Customer support history',
+                              action: (client) => client.resetChat(),
+                              setBusy: (busy) =>
+                                  setState(() => _isClearingChat = busy),
+                              afterSuccess: ChatScreen.clearCachedState,
+                            ),
+                      icon: _isClearingChat
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.chat_bubble_outline_rounded),
+                      label: Text(
+                        _isClearingChat ? 'Clearing…' : 'Clear chat history',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Investment History',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Clears backend-held Investment Analyst sessions/history and resets that agent to prompt v1.',
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: _isClearingInvestment
+                          ? null
+                          : () => _resetBackendState(
+                              label: 'Investment history',
+                              action: (client) => client.resetInvestment(),
+                              setBusy: (busy) =>
+                                  setState(() => _isClearingInvestment = busy),
+                              afterSuccess: InvestmentScreen.clearCachedState,
+                            ),
+                      icon: _isClearingInvestment
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.query_stats_rounded),
+                      label: Text(
+                        _isClearingInvestment
+                            ? 'Clearing…'
+                            : 'Clear investment history',
+                      ),
                     ),
                   ],
                 ),
@@ -249,36 +374,12 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                     OutlinedButton.icon(
                       onPressed: _isClearingRecentPosts
                           ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              setState(() => _isClearingRecentPosts = true);
-                              try {
-                                final apiClient = ApiClient();
-                                late final Map<String, dynamic> result;
-                                try {
-                                  result = await apiClient.resetPosts();
-                                } finally {
-                                  apiClient.close();
-                                }
-                                if (!mounted) return;
-                                final failed = result['error'] == true;
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      failed
-                                          ? 'Could not clear recent posts history.'
-                                          : 'Recent posts history cleared.',
-                                    ),
-                                  ),
-                                );
-                              } finally {
-                                if (mounted) {
-                                  setState(
-                                    () => _isClearingRecentPosts = false,
-                                  );
-                                }
-                              }
-                            },
+                          : () => _resetBackendState(
+                              label: 'Recent posts history',
+                              action: (client) => client.resetPosts(),
+                              setBusy: (busy) =>
+                                  setState(() => _isClearingRecentPosts = busy),
+                            ),
                       icon: _isClearingRecentPosts
                           ? const SizedBox(
                               width: 16,
@@ -300,5 +401,34 @@ class _SettingsScreenState extends State<_SettingsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _resetBackendState({
+    required String label,
+    required Future<Map<String, dynamic>> Function(ApiClient client) action,
+    required ValueChanged<bool> setBusy,
+    VoidCallback? afterSuccess,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setBusy(true);
+    try {
+      final apiClient = ApiClient();
+      late final Map<String, dynamic> result;
+      try {
+        result = await action(apiClient);
+      } finally {
+        apiClient.close();
+      }
+      if (!mounted) return;
+      final failed = result['error'] == true;
+      if (!failed) afterSuccess?.call();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(failed ? 'Could not clear $label.' : '$label cleared.'),
+        ),
+      );
+    } finally {
+      if (mounted) setBusy(false);
+    }
   }
 }
