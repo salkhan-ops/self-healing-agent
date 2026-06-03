@@ -17,7 +17,7 @@
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
 
@@ -30,8 +30,20 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>dashboard</title>
+  <title>Self-Healing Agent Dashboard</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overscroll-behavior: none;
+      background: #0A0A0F;
+    }
+    body {
+      min-height: 100dvh;
+      touch-action: manipulation;
+    }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'core/app_config.dart';
 import 'core/api_client.dart';
+import 'core/responsive.dart';
 import 'core/theme.dart';
 import 'providers/agent_provider.dart';
 import 'providers/metrics_provider.dart';
@@ -148,6 +149,7 @@ class _ResponsiveShellState extends State<_ResponsiveShell> {
         return Scaffold(
           key: _scaffoldKey,
           drawer: isMobile ? const Drawer(child: Sidebar()) : null,
+          drawerEdgeDragWidth: 72,
           body: isMobile
               ? Column(
                   children: [
@@ -166,7 +168,7 @@ class _ResponsiveShellState extends State<_ResponsiveShell> {
                         ),
                       ),
                     ),
-                    Expanded(child: widget.child),
+                    Expanded(child: SafeArea(top: false, child: widget.child)),
                   ],
                 )
               : Row(
@@ -197,7 +199,7 @@ class _SettingsScreenState extends State<_SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: Responsive.pagePadding(context),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

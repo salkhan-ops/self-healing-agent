@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../core/app_config.dart';
+import '../core/responsive.dart';
 import '../core/theme.dart';
 import '../models/schedule.dart';
 import '../providers/scheduler_provider.dart';
@@ -41,7 +42,7 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
         final compact = constraints.maxWidth < 980;
 
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: Responsive.pagePadding(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

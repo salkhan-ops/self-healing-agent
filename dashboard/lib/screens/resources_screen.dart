@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/responsive.dart';
 import '../core/theme.dart';
 
 class ResourcesScreen extends StatefulWidget {
@@ -140,7 +141,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
     final selected = _articles[_selectedIndex];
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: Responsive.pagePadding(context),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 980;
@@ -148,9 +149,12 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Resources',
-                  style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: Responsive.isHandset(context) ? 28 : 34,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 if (compact)
@@ -298,7 +302,7 @@ class _ArticleReader extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: Responsive.pagePadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -313,7 +317,10 @@ class _ArticleReader extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               article.title,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontSize: Responsive.isHandset(context) ? 22 : 28,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 12),
             Text(

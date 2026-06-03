@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../core/responsive.dart';
 import '../core/app_config.dart';
 import '../providers/agent_provider.dart';
 import '../widgets/healing_journey_dialog.dart';
@@ -223,7 +224,7 @@ class _PostScreenState extends State<PostScreen> {
         final composer = _briefPanel(context);
         final output = _outputPanel(context);
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: Responsive.pagePadding(context),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,7 +232,7 @@ class _PostScreenState extends State<PostScreen> {
                 _topBar(),
                 const SizedBox(height: 18),
                 SizedBox(
-                  height: isMobile ? 760 : 420,
+                  height: isMobile ? 820 : 420,
                   child: isMobile
                       ? Column(
                           children: [
@@ -253,7 +254,7 @@ class _PostScreenState extends State<PostScreen> {
                         ),
                 ),
                 const SizedBox(height: 16),
-                _historyTable(),
+                _historyTable(isMobile: isMobile),
               ],
             ),
           ),
@@ -505,7 +506,7 @@ class _PostScreenState extends State<PostScreen> {
     );
   }
 
-  Widget _historyTable() {
+  Widget _historyTable({required bool isMobile}) {
     final recent = history.take(5).toList();
     final isPreparingHealedVersion = pendingHealingBaseline != null;
     return Card(
@@ -527,6 +528,22 @@ class _PostScreenState extends State<PostScreen> {
               const Text(
                 'No posts generated yet.',
                 style: TextStyle(color: _textSecondary),
+              )
+            else if (isMobile)
+              Column(
+                children: [
+                  for (final item in recent)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _MobilePostHistoryCard(
+                        item: item,
+                        hallucination: _asDouble(item['hallucination_score']),
+                        color: _scoreColor(
+                          _asDouble(item['hallucination_score']),
+                        ),
+                      ),
+                    ),
+                ],
               )
             else
               SingleChildScrollView(
@@ -1227,6 +1244,69 @@ class _PostComparisonColumn extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Expanded(child: SingleChildScrollView(child: SelectableText(text))),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobilePostHistoryCard extends StatelessWidget {
+  const _MobilePostHistoryCard({
+    required this.item,
+    required this.hallucination,
+    required this.color,
+  });
+
+  final Map<String, dynamic> item;
+  final double hallucination;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                _label(item['platform']?.toString() ?? ''),
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              Text(
+                _time(item['timestamp']?.toString() ?? ''),
+                style: const TextStyle(color: _textSecondary, fontSize: 12),
+              ),
+              Text(
+                'v${item['prompt_version'] ?? ''}',
+                style: const TextStyle(color: _textSecondary, fontSize: 12),
+              ),
+              Text(
+                'H ${hallucination.toStringAsFixed(2)}',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item['post']?.toString() ?? '',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );

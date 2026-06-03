@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/app_config.dart';
+import '../core/responsive.dart';
 import '../core/theme.dart';
 
 class PhoenixTracesScreen extends StatefulWidget {
@@ -73,7 +74,7 @@ class _PhoenixTracesScreenState extends State<PhoenixTracesScreen> {
     final traces = _list(payload['traces']);
     final timeline = _list(payload['timeline']);
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: Responsive.pagePadding(context),
       child: RefreshIndicator(
         onRefresh: () => _load(refresh: true),
         child: ListView(

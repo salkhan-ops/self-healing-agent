@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/responsive.dart';
 import '../core/theme.dart';
 import '../core/websocket.dart';
 import '../providers/metrics_provider.dart';
@@ -43,8 +44,10 @@ class _ChartsScreenState extends State<ChartsScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: Responsive.pagePadding(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -53,61 +56,109 @@ class _ChartsScreenState extends State<ChartsScreen> {
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 20),
-              SegmentedButton<String>(
-                segments: [
-                  for (final period in periods)
-                    ButtonSegment(
-                      value: period,
-                      label: Text(
-                        '${period[0].toUpperCase()}${period.substring(1)}',
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SegmentedButton<String>(
+                  segments: [
+                    for (final period in periods)
+                      ButtonSegment(
+                        value: period,
+                        label: Text(
+                          '${period[0].toUpperCase()}${period.substring(1)}',
+                        ),
                       ),
-                    ),
-                ],
-                selected: {provider.selectedPeriod},
-                onSelectionChanged: (selection) =>
-                    provider.loadChartData(selection.first),
+                  ],
+                  selected: {provider.selectedPeriod},
+                  onSelectionChanged: (selection) =>
+                      provider.loadChartData(selection.first),
+                ),
               ),
               const SizedBox(height: 20),
               _MetricHint(points: points),
               const SizedBox(height: 14),
               Expanded(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: _Chart(
-                        title: 'Hallucination Rate',
-                        color: AppColors.danger,
-                        values: points.map((p) => p.hallucination).toList(),
-                        idealText: 'lower is better',
-                        threshold: 0.40,
-                        thresholdLabel: 'risk line',
+                child: compact
+                    ? ListView(
+                        children: [
+                          SizedBox(
+                            height: 240,
+                            child: _Chart(
+                              title: 'Hallucination Rate',
+                              color: AppColors.danger,
+                              values: points
+                                  .map((p) => p.hallucination)
+                                  .toList(),
+                              idealText: 'lower is better',
+                              threshold: 0.40,
+                              thresholdLabel: 'risk line',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 240,
+                            child: _Chart(
+                              title: 'Relevance Score',
+                              color: AppColors.accent,
+                              values: points.map((p) => p.relevance).toList(),
+                              idealText: 'higher is better',
+                              threshold: 0.80,
+                              thresholdLabel: 'target',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 240,
+                            child: _Chart(
+                              title: 'Latency',
+                              color: AppColors.warning,
+                              values: points.map((p) => p.latencyMs).toList(),
+                              idealText: 'milliseconds',
+                              isLatency: true,
+                              threshold: 3000,
+                              thresholdLabel: 'limit',
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: _Chart(
+                              title: 'Hallucination Rate',
+                              color: AppColors.danger,
+                              values: points
+                                  .map((p) => p.hallucination)
+                                  .toList(),
+                              idealText: 'lower is better',
+                              threshold: 0.40,
+                              thresholdLabel: 'risk line',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: _Chart(
+                              title: 'Relevance Score',
+                              color: AppColors.accent,
+                              values: points.map((p) => p.relevance).toList(),
+                              idealText: 'higher is better',
+                              threshold: 0.80,
+                              thresholdLabel: 'target',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: _Chart(
+                              title: 'Latency',
+                              color: AppColors.warning,
+                              values: points.map((p) => p.latencyMs).toList(),
+                              idealText: 'milliseconds',
+                              isLatency: true,
+                              threshold: 3000,
+                              thresholdLabel: 'limit',
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: _Chart(
-                        title: 'Relevance Score',
-                        color: AppColors.accent,
-                        values: points.map((p) => p.relevance).toList(),
-                        idealText: 'higher is better',
-                        threshold: 0.80,
-                        thresholdLabel: 'target',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: _Chart(
-                        title: 'Latency',
-                        color: AppColors.warning,
-                        values: points.map((p) => p.latencyMs).toList(),
-                        idealText: 'milliseconds',
-                        isLatency: true,
-                        threshold: 3000,
-                        thresholdLabel: 'limit',
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -190,13 +241,15 @@ class _Chart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 Text(
                   '$valueText · $idealText',

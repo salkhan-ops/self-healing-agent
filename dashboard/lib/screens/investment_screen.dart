@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/app_config.dart';
+import '../core/responsive.dart';
 import '../providers/agent_provider.dart';
 import '../widgets/healing_journey_dialog.dart';
 
@@ -655,7 +656,9 @@ class _InvestmentScreenState extends State<InvestmentScreen>
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                padding: Responsive.isHandset(context)
+                    ? const EdgeInsets.fromLTRB(14, 16, 14, 12)
+                    : const EdgeInsets.fromLTRB(24, 20, 24, 12),
                 itemCount: messages.length + (isLoading ? 1 : 0),
                 itemBuilder: (context, index) {
                   if (index == messages.length) {
@@ -1149,7 +1152,11 @@ class _MessageCard extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 760),
+        constraints: BoxConstraints(
+          maxWidth: Responsive.isHandset(context)
+              ? MediaQuery.sizeOf(context).width * 0.92
+              : 760,
+        ),
         margin: const EdgeInsets.only(bottom: 16),
         child: Column(
           crossAxisAlignment: isUser
@@ -2144,7 +2151,12 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.isHandset(context) ? 10 : 18,
+        12,
+        Responsive.isHandset(context) ? 10 : 18,
+        12 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),

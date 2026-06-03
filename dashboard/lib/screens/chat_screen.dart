@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/app_config.dart';
+import '../core/responsive.dart';
 import '../providers/agent_provider.dart';
 import '../widgets/healing_journey_dialog.dart';
 
@@ -381,7 +382,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           Expanded(
             child: ListView.builder(
               controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 18),
+              padding: Responsive.isHandset(context)
+                  ? const EdgeInsets.fromLTRB(14, 16, 14, 12)
+                  : const EdgeInsets.fromLTRB(28, 24, 28, 18),
               itemCount: messages.length + (isLoading ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == messages.length) {
@@ -661,7 +664,9 @@ class _TopBar extends StatelessWidget {
     final agent = context.watch<AgentProvider>();
     return Container(
       constraints: const BoxConstraints(minHeight: 74),
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: EdgeInsets.symmetric(
+        horizontal: Responsive.isHandset(context) ? 14 : 28,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(
@@ -798,7 +803,12 @@ class _SelfHealingBanner extends StatelessWidget {
       },
       child: Container(
         width: double.infinity,
-        margin: const EdgeInsets.fromLTRB(28, 18, 28, 0),
+        margin: EdgeInsets.fromLTRB(
+          Responsive.isHandset(context) ? 14 : 28,
+          18,
+          Responsive.isHandset(context) ? 14 : 28,
+          0,
+        ),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(colors: [success, accent]),
@@ -835,7 +845,11 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 620),
+        constraints: BoxConstraints(
+          maxWidth: Responsive.isHandset(context)
+              ? MediaQuery.sizeOf(context).width * 0.86
+              : 620,
+        ),
         margin: const EdgeInsets.only(bottom: 14),
         child: Column(
           crossAxisAlignment: isUser
@@ -1235,7 +1249,12 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+      padding: EdgeInsets.fromLTRB(
+        Responsive.isHandset(context) ? 10 : 18,
+        12,
+        Responsive.isHandset(context) ? 10 : 18,
+        12 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),

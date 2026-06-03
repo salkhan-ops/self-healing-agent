@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/responsive.dart';
 import '../core/theme.dart';
 import '../providers/reports_provider.dart';
 
@@ -29,29 +30,25 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final report = context.watch<ReportsProvider>().selectedReport;
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: Responsive.pagePadding(context),
       child: report == null
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 720;
+                final title = Text(
+                  report.problem,
+                  style: TextStyle(
+                    fontSize: compact ? 20 : 24,
+                    fontWeight: FontWeight.w900,
+                  ),
+                );
+                final actions = Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    IconButton(
-                      onPressed: () => context.go('/reports'),
-                      icon: const Icon(Icons.arrow_back),
-                    ),
-                    Expanded(
-                      child: Text(
-                        report.problem,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
                     _Badge('${report.improvementPercent.toStringAsFixed(0)}%'),
-                    const SizedBox(width: 12),
                     ElevatedButton.icon(
                       onPressed: () => Clipboard.setData(
                         ClipboardData(text: report.contentText),
@@ -60,48 +57,97 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                       label: const Text('Export'),
                     ),
                   ],
-                ),
-                const SizedBox(height: 20),
-                Row(
+                );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: _CompareCard(
-                        title: 'Before',
-                        hallucination: report.beforeHallucination,
-                        relevance: report.beforeRelevance,
-                        latency: report.beforeLatency,
+                    if (compact)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          IconButton(
+                            onPressed: () => context.go('/reports'),
+                            icon: const Icon(Icons.arrow_back),
+                          ),
+                          title,
+                          const SizedBox(height: 12),
+                          actions,
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => context.go('/reports'),
+                            icon: const Icon(Icons.arrow_back),
+                          ),
+                          Expanded(child: title),
+                          actions,
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _CompareCard(
-                        title: 'After',
-                        hallucination: report.afterHallucination,
-                        relevance: report.afterRelevance,
-                        latency: report.afterLatency,
+                    const SizedBox(height: 20),
+                    if (compact)
+                      Column(
+                        children: [
+                          _CompareCard(
+                            title: 'Before',
+                            hallucination: report.beforeHallucination,
+                            relevance: report.beforeRelevance,
+                            latency: report.beforeLatency,
+                          ),
+                          const SizedBox(height: 12),
+                          _CompareCard(
+                            title: 'After',
+                            hallucination: report.afterHallucination,
+                            relevance: report.afterRelevance,
+                            latency: report.afterLatency,
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _CompareCard(
+                              title: 'Before',
+                              hallucination: report.beforeHallucination,
+                              relevance: report.beforeRelevance,
+                              latency: report.beforeLatency,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _CompareCard(
+                              title: 'After',
+                              hallucination: report.afterHallucination,
+                              relevance: report.afterRelevance,
+                              latency: report.afterLatency,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: Card(
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      child: SingleChildScrollView(
-                        child: Text(
-                          report.contentText,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            height: 1.5,
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: Card(
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              report.contentText,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                height: 1.5,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
     );
   }
@@ -125,15 +171,18 @@ class _CompareCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            Text('Hallucination ${hallucination.toStringAsFixed(2)}'),
-            Text('Relevance ${relevance.toStringAsFixed(2)}'),
-            Text('Latency ${latency.toStringAsFixed(0)}ms'),
-          ],
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              Text('Hallucination ${hallucination.toStringAsFixed(2)}'),
+              Text('Relevance ${relevance.toStringAsFixed(2)}'),
+              Text('Latency ${latency.toStringAsFixed(0)}ms'),
+            ],
+          ),
         ),
       ),
     );

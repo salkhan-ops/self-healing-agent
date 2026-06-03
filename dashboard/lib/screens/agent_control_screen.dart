@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/app_config.dart';
+import '../core/responsive.dart';
 import '../core/theme.dart';
 import '../providers/agent_provider.dart';
 
@@ -66,7 +67,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
               );
 
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: Responsive.pagePadding(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
