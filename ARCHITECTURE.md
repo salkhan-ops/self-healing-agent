@@ -8,7 +8,7 @@ The Self-Healing Agent is a multi-surface AI application that serves three live 
 
 | Component | Technology | Port | What it does | Location |
 |---|---|---:|---|---|
-| Flutter Web Dashboard | Flutter / Dart / Provider / go_router | Served by backend; dev typically 3000 | Browser UI for dashboard, chat, posts, investment research, reports, schedules, and agent control. | `dashboard/lib/` |
+| Flutter Web Dashboard | Flutter / Dart / Provider / go_router | Served by backend; dev typically 3000 | Browser UI for dashboard, chat, posts, investment research, Phoenix traces, reports, resources, schedules, and agent control. | `dashboard/lib/` |
 | FastAPI application | Python / FastAPI / Uvicorn | Local 8000; Cloud Run container 8080 | Hosts REST APIs, WebSocket endpoint, bundled Flutter assets, startup lifecycle, and route composition. | `backend/main.py` |
 | Customer Support Chat Agent | Python / Gemini / OpenTelemetry | none | Answers FAQ-grounded customer questions with prompt-version tracking and traces. | `backend/services/chat_agent.py` |
 | Social Media Post Agent | Python / Gemini / OpenTelemetry | none | Generates posts from briefs and tracks prompt versions. | `backend/services/post_agent.py` |
@@ -425,7 +425,7 @@ In production, the intended Cloud Run topology has two services: `phoenix-server
 Use a **left-to-right architecture diagram** with five grouped bands:
 
 1. **Flutter Web Frontend** on the far left.
-   - Show rounded UI nodes for Dashboard, Customer Support, Social Media Posts, Investment Analyst, Reports, Scheduler, and Agent Control.
+   - Show rounded UI nodes for Dashboard, Phoenix Traces, Customer Support, Social Media Posts, Investment Analyst, Reports, Resources, Scheduler, and Agent Control.
    - Include small service rectangles for `ApiClient`, `WebSocketClient`, and Providers because they explain how the UI talks to the backend.
 
 2. **FastAPI Backend** in the center-left.
@@ -474,6 +474,7 @@ flowchart LR
     PostsUI([Social Media Posts Screen])
     InvestUI([Investment Analyst Screen])
     ReportsUI([Reports Screen])
+    ResourcesUI([Resources Screen])
     SchedulerUI([Scheduler Screen])
     AgentUI([Agent Control Screen])
     ApiClient[ApiClient]
@@ -535,6 +536,7 @@ flowchart LR
   PostsUI -->|REST calls| ApiClient
   InvestUI -->|REST calls| ApiClient
   ReportsUI -->|REST calls| ApiClient
+  ResourcesUI -->|static articles| Providers
   SchedulerUI -->|REST calls| ApiClient
   AgentUI -->|REST calls| ApiClient
   Providers --> ApiClient

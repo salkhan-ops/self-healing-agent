@@ -29,6 +29,10 @@ class TraceReader:
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.project_name = project_name
+        self.mcp_project_identifier = os.getenv(
+            "PHOENIX_MCP_PROJECT_IDENTIFIER",
+            project_name,
+        )
         self.client = None
 
     def get_recent_traces(self, limit: int = 10) -> list[dict[str, Any]]:
@@ -46,7 +50,12 @@ class TraceReader:
         try:
             response = self.query_phoenix_via_mcp(
                 "list-traces",
-                params={"project_name": self.project_name, "limit": limit},
+                params={
+                    "projectIdentifier": self.mcp_project_identifier,
+                    "project_identifier": self.mcp_project_identifier,
+                    "project_name": self.project_name,
+                    "limit": limit,
+                },
             )
         except Exception as exc:
             print(f"⚠️ Could not read Phoenix traces via MCP: {exc}")
@@ -59,7 +68,11 @@ class TraceReader:
             return []
 
         traces = self._extract_mcp_traces(response)
-        normalized = [self._normalize_trace(trace) for trace in traces]
+        normalized = [
+            trace
+            for trace in (self._normalize_trace(trace) for trace in traces)
+            if self._has_trace_id(trace)
+        ]
         trace_evidence_store.set_mcp_status(
             status="success",
             traces_fetched=len(normalized),
@@ -96,6 +109,10 @@ class TraceReader:
         params: dict[str, Any],
     ) -> dict[str, Any]:
         """Open a real MCP stdio session and call one Phoenix tool."""
+        env = os.environ.copy()
+        env["PHOENIX_PROJECT"] = self.mcp_project_identifier
+        env["PHOENIX_PROJECT_NAME"] = self.project_name
+
         server = StdioServerParameters(
             command="npx",
             args=[
@@ -103,8 +120,10 @@ class TraceReader:
                 "@arizeai/phoenix-mcp@latest",
                 "--baseUrl",
                 self.endpoint,
+                "--project",
+                self.mcp_project_identifier,
             ],
-            env=os.environ.copy(),
+            env=env,
         )
         async with stdio_client(server) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
@@ -219,26 +238,57 @@ class TraceReader:
 
     def _normalize_trace(self, row: dict[str, Any]) -> dict[str, Any]:
         """Convert Phoenix span rows into stable trace dictionaries."""
+        spans = row.get("spans") if isinstance(row.get("spans"), list) else []
+        root_span = row.get("rootSpan") if isinstance(row.get("rootSpan"), dict) else {}
+        if not root_span and spans:
+            root_span = spans[0]
+
+        attributes = (
+            root_span.get("attributes")
+            if isinstance(root_span.get("attributes"), dict)
+            else {}
+        )
+        context = (
+            root_span.get("context") if isinstance(root_span.get("context"), dict) else {}
+        )
+
         return {
             **row,
-            "trace_id": self._first_value(row, "context.trace_id", "trace_id"),
-            "span_id": self._first_value(row, "context.span_id", "span_id"),
-            "question": self._first_value(row, "input.value", "attributes.input.value"),
-            "answer": self._first_value(row, "output.value", "attributes.output.value"),
+            "trace_id": self._first_value(row, "traceId", "trace_id")
+            or self._first_value(context, "trace_id"),
+            "span_id": self._first_value(row, "spanId", "span_id")
+            or self._first_value(context, "span_id"),
+            "name": self._first_value(root_span, "name") or self._first_value(row, "name"),
+            "timestamp": self._first_value(row, "startTime", "start_time", "timestamp")
+            or self._first_value(root_span, "start_time"),
+            "span_count": len(spans) or 1,
+            "agent.name": self._first_value(attributes, "agent.name", "agent_name"),
+            "use_case": self._first_value(attributes, "use_case"),
+            "question": self._first_value(row, "input.value", "attributes.input.value")
+            or self._first_value(attributes, "input.value"),
+            "answer": self._first_value(row, "output.value", "attributes.output.value")
+            or self._first_value(attributes, "output.value"),
             "latency_ms": self._first_value(
                 row, "latency_ms", "attributes.latency_ms", "duration_ms"
-            ),
+            )
+            or self._first_value(attributes, "latency_ms"),
             "hallucination_score": self._first_value(
                 row,
                 "hallucination_score",
                 "eval.hallucination_score",
                 "attributes.hallucination_score",
-            ),
+            )
+            or self._first_value(attributes, "hallucination_score"),
             "relevance_score": self._first_value(
                 row,
                 "relevance_score",
                 "eval.relevance_score",
                 "attributes.relevance_score",
+            )
+            or self._first_value(attributes, "relevance_score"),
+            "prompt_version": self._first_value(attributes, "chat.prompt_version"),
+            "before_after_status": self._first_value(
+                attributes, "before_after_status"
             ),
         }
 
@@ -306,10 +356,14 @@ class TraceReader:
         """Return the first non-empty value from a row for several possible Phoenix columns."""
         for key in keys:
             value = row.get(key)
-            if value not in (None, ""):
+            if value not in (None, "", "None"):
                 return value
 
         return None
+
+    def _has_trace_id(self, row: dict[str, Any]) -> bool:
+        trace_id = str(row.get("trace_id") or "").strip()
+        return bool(trace_id and trace_id.lower() != "none")
 
     def _number_or_none(self, value: Any) -> float | None:
         """Convert numeric values safely while preserving unknown scores as None."""

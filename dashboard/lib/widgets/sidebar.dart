@@ -129,6 +129,12 @@ class _SidebarState extends State<Sidebar> {
             activePath: location,
           ),
           _SidebarItem(
+            icon: Icons.menu_book_rounded,
+            label: 'Resources',
+            path: '/resources',
+            activePath: location,
+          ),
+          _SidebarItem(
             icon: Icons.schedule_rounded,
             label: 'Scheduler',
             path: '/scheduler',

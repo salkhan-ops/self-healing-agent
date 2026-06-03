@@ -148,7 +148,7 @@ Before healing, the agent invents P/E ratios. After healing, it responds safely:
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │         Flutter Web Dashboard (GitHub Pages — static)            │
-│  Dashboard │ Charts │ Reports │ Scheduler │ Agent Control        │
+│  Dashboard │ Phoenix Traces │ Reports │ Resources │ Scheduler    │
 │  Customer Support │ Social Media Posts │ Investment Analyst      │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ REST + WebSocket
@@ -227,6 +227,7 @@ All seven steps happen automatically. No human is required.
 - **Real-time charts** for hallucination, relevance, and latency across hour/day/week/month/year views
 - **Incident reports** with before/after comparison, root cause, and fix description
 - **Phoenix Traces** page showing trace IDs, span names, scores, MCP retrieval status, and the trace-to-healing timeline
+- **Resources** section with five judge-facing articles on self-healing architecture, Phoenix trace retrieval, and the support, social, and investment use cases
 - **Scheduler** for recurring healing loops
 - **Agent Control** to trigger runs manually and watch the live output stream
 - **Healing Journey Dialog** with an animated step-by-step visualization of the healing process

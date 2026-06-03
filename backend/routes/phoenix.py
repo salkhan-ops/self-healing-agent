@@ -71,7 +71,7 @@ def _merge_phoenix_rows(
                 ),
                 "trace_id": trace_id,
                 "span_name": str(row.get("name") or row.get("span_name") or ""),
-                "span_count": 1,
+                "span_count": int(_float(row.get("span_count")) or 1),
                 "agent_name": str(row.get("agent.name") or row.get("agent_name") or "Phoenix"),
                 "use_case": str(row.get("use_case") or row.get("attributes.use_case") or "unknown"),
                 "status": "captured",

@@ -46,6 +46,28 @@ flutter build web "${BUILD_ARGS[@]}"
 
 mkdir -p "$LANDING_DIR"
 rsync -a --delete --exclude '.git/' "$FLUTTER_DIR/build/web/" "$LANDING_DIR/"
+cp "$LANDING_DIR/index.html" "$LANDING_DIR/404.html"
+ROUTE_FALLBACKS=(
+  agent
+  auth
+  auth/callback
+  charts
+  chat
+  investment
+  login
+  phoenix
+  posts
+  reports
+  resources
+  scheduler
+  settings
+  sign-in
+  signin
+)
+for route in "${ROUTE_FALLBACKS[@]}"; do
+  mkdir -p "$LANDING_DIR/$route"
+  cp "$LANDING_DIR/index.html" "$LANDING_DIR/$route/index.html"
+done
 touch "$LANDING_DIR/.nojekyll"
 
 echo "Flutter web build copied to $LANDING_DIR"

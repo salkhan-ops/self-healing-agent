@@ -19,6 +19,7 @@ import 'screens/phoenix_traces_screen.dart';
 import 'screens/post_screen.dart';
 import 'screens/report_detail_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/resources_screen.dart';
 import 'screens/scheduler_screen.dart';
 import 'widgets/sidebar.dart';
 
@@ -53,6 +54,17 @@ class SelfHealingDashboardApp extends StatelessWidget {
 
 final _router = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    final path = state.uri.path.toLowerCase();
+    if (path == '/login' ||
+        path == '/signin' ||
+        path == '/sign-in' ||
+        path == '/auth' ||
+        path == '/auth/callback') {
+      return '/';
+    }
+    return null;
+  },
   routes: [
     ShellRoute(
       builder: (context, state, child) {
@@ -90,6 +102,10 @@ final _router = GoRouter(
             final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
             return ReportDetailScreen(id: id);
           },
+        ),
+        GoRoute(
+          path: '/resources',
+          builder: (context, state) => const ResourcesScreen(),
         ),
         GoRoute(
           path: '/scheduler',
@@ -246,7 +262,6 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -254,144 +269,57 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Phoenix Traces',
+                      'Reset Demo State',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Opens the judge-facing trace view with Phoenix MCP retrieval status, trace IDs, scores, and before/after healing evidence.',
+                      'Use these controls when you want a clean prompt v1 demo for a specific agent. They clear backend-held history for that surface.',
                     ),
                     const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: () => context.go('/phoenix'),
-                      icon: const Icon(Icons.hub_rounded),
-                      label: const Text('Open Phoenix Traces'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Customer Support History',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Clears backend-held Customer Support chat sessions and resets that agent to prompt v1.',
-                    ),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _isClearingChat
-                          ? null
-                          : () => _resetBackendState(
-                              label: 'Customer support history',
-                              action: (client) => client.resetChat(),
-                              setBusy: (busy) =>
-                                  setState(() => _isClearingChat = busy),
-                              afterSuccess: ChatScreen.clearCachedState,
-                            ),
-                      icon: _isClearingChat
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.chat_bubble_outline_rounded),
-                      label: Text(
-                        _isClearingChat ? 'Clearing…' : 'Clear chat history',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Investment History',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Clears backend-held Investment Analyst sessions/history and resets that agent to prompt v1.',
-                    ),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _isClearingInvestment
-                          ? null
-                          : () => _resetBackendState(
-                              label: 'Investment history',
-                              action: (client) => client.resetInvestment(),
-                              setBusy: (busy) =>
-                                  setState(() => _isClearingInvestment = busy),
-                              afterSuccess: InvestmentScreen.clearCachedState,
-                            ),
-                      icon: _isClearingInvestment
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.query_stats_rounded),
-                      label: Text(
-                        _isClearingInvestment
-                            ? 'Clearing…'
-                            : 'Clear investment history',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Recent Posts History',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Clears the backend-held Social Media Posts history and resets that agent to prompt v1.',
-                    ),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _isClearingRecentPosts
-                          ? null
-                          : () => _resetBackendState(
-                              label: 'Recent posts history',
-                              action: (client) => client.resetPosts(),
-                              setBusy: (busy) =>
-                                  setState(() => _isClearingRecentPosts = busy),
-                            ),
-                      icon: _isClearingRecentPosts
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.history_toggle_off_rounded),
-                      label: Text(
-                        _isClearingRecentPosts
-                            ? 'Clearing…'
-                            : 'Clear recent posts/history',
-                      ),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _ResetButton(
+                          isBusy: _isClearingChat,
+                          icon: Icons.chat_bubble_outline_rounded,
+                          loadingLabel: 'Clearing chat…',
+                          label: 'Customer support',
+                          onPressed: () => _resetBackendState(
+                            label: 'Customer support history',
+                            action: (client) => client.resetChat(),
+                            setBusy: (busy) =>
+                                setState(() => _isClearingChat = busy),
+                            afterSuccess: ChatScreen.clearCachedState,
+                          ),
+                        ),
+                        _ResetButton(
+                          isBusy: _isClearingInvestment,
+                          icon: Icons.query_stats_rounded,
+                          loadingLabel: 'Clearing investment…',
+                          label: 'Investment analyst',
+                          onPressed: () => _resetBackendState(
+                            label: 'Investment history',
+                            action: (client) => client.resetInvestment(),
+                            setBusy: (busy) =>
+                                setState(() => _isClearingInvestment = busy),
+                            afterSuccess: InvestmentScreen.clearCachedState,
+                          ),
+                        ),
+                        _ResetButton(
+                          isBusy: _isClearingRecentPosts,
+                          icon: Icons.history_toggle_off_rounded,
+                          loadingLabel: 'Clearing posts…',
+                          label: 'Social media posts',
+                          onPressed: () => _resetBackendState(
+                            label: 'Recent posts history',
+                            action: (client) => client.resetPosts(),
+                            setBusy: (busy) =>
+                                setState(() => _isClearingRecentPosts = busy),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -430,5 +358,36 @@ class _SettingsScreenState extends State<_SettingsScreen> {
     } finally {
       if (mounted) setBusy(false);
     }
+  }
+}
+
+class _ResetButton extends StatelessWidget {
+  const _ResetButton({
+    required this.isBusy,
+    required this.icon,
+    required this.loadingLabel,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool isBusy;
+  final IconData icon;
+  final String loadingLabel;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: isBusy ? null : onPressed,
+      icon: isBusy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
+      label: Text(isBusy ? loadingLabel : label),
+    );
   }
 }

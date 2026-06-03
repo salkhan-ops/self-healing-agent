@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 const _background = Color(0xFF0A0A0F);
 const _surface = Color(0xFF12121A);
@@ -649,7 +650,11 @@ class _Step6Complete extends StatelessWidget {
             alignment: WrapAlignment.center,
             children: [
               OutlinedButton(
-                onPressed: () => Navigator.of(context).pushNamed('/reports'),
+                onPressed: () {
+                  final router = GoRouter.of(context);
+                  Navigator.pop(context);
+                  router.go('/reports');
+                },
                 child: const Text('View Full Report'),
               ),
               FilledButton(
