@@ -12,10 +12,20 @@ source venv/bin/activate
 
 
 
+# GCP project boundaries - keep these independent:
+# CreatorDeal AI      project_id=creator-deal-ai             project_number=462365956896
+# self-healing-agent  project_id=gen-lang-client-0880901302  project_number=65778886250
+# RehearseAI          project_id=rehearseai-prod             project_number=805488057071
+#
+# Do not rely on `gcloud config get-value project` here. Always pass --project.
+# This repo's backend deploy target:
+SELF_HEALING_GCP_PROJECT="gen-lang-client-0880901302"
+SELF_HEALING_BACKEND_URL="https://self-healing-agent-65778886250.us-central1.run.app"
 
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 
 gcloud run deploy self-healing-agent \
+  --project "$SELF_HEALING_GCP_PROJECT" \
   --source . \
   --region us-central1 \
   --port=8080 \
@@ -25,6 +35,7 @@ gcloud run deploy self-healing-agent \
   --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=3,PUBLIC_DEMO_HEALING_RUN_LIMIT=3,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024,APP_ENV=production,PHOENIX_HOST=https://phoenix-server-fwelzysgnq-uc.a.run.app,PHOENIX_COLLECTOR_ENDPOINT=https://phoenix-server-fwelzysgnq-uc.a.run.app/v1/traces,PHOENIX_PROJECT_NAME=self-healing-agent,PHOENIX_MCP_PROJECT_IDENTIFIER=self-healing-agent
 
 gcloud run services update self-healing-agent \
+  --project "$SELF_HEALING_GCP_PROJECT" \
   --region us-central1 \
   --min=0 \
   --max=2 \
@@ -32,7 +43,7 @@ gcloud run services update self-healing-agent \
 
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 PUBLIC_DEMO_MODE=true \
-API_BASE_URL="https://self-healing-agent-805488057071.us-central1.run.app" \
+API_BASE_URL="$SELF_HEALING_BACKEND_URL" \
 ./scripts/deploy_flutter_web_to_pages.sh
 
 
