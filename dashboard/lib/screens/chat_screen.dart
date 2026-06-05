@@ -205,6 +205,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           promptVersion++;
           healingComparisons = pairs.cast<Map<String, dynamic>>().toList();
           healingJourneyMeta = meta;
+          _annotateHealingMessages();
           showSelfHealingBanner = true;
           selfHealingActive = true;
           _saveState();
@@ -445,6 +446,60 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       return value.toInt();
     }
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  void _annotateHealingMessages() {
+    final afterHallucination = _asDouble(
+      healingJourneyMeta['after_hallucination'],
+      0.0,
+    );
+    final afterRelevance = _asDouble(
+      healingJourneyMeta['after_relevance'],
+      0.0,
+    );
+
+    for (final pair in healingComparisons) {
+      final question = pair['question']?.toString() ?? '';
+      final before = pair['before']?.toString() ?? '';
+      final after = pair['after']?.toString() ?? '';
+      final beforeVersion = _asInt(pair['before_version'], 1);
+      final afterVersion = _asInt(pair['after_version'], promptVersion);
+
+      for (final message in messages) {
+        if (message['role'] != 'agent') continue;
+        final sameQuestion =
+            (message['question']?.toString() ?? '') == question;
+        final sameAnswer =
+            (message['content']?.toString() ?? '').trim() == before.trim();
+        if (sameQuestion && sameAnswer) {
+          message['healing_stage'] = 'Before healing';
+          message['prompt_version'] = beforeVersion;
+        }
+      }
+
+      final alreadyAdded = messages.any(
+        (message) =>
+            message['role'] == 'agent' &&
+            message['healing_stage'] == 'After healing' &&
+            (message['question']?.toString() ?? '') == question &&
+            (message['content']?.toString() ?? '').trim() == after.trim(),
+      );
+      if (!alreadyAdded && after.trim().isNotEmpty) {
+        messages.add({
+          'role': 'agent',
+          'content': after,
+          'question': question,
+          'timestamp': DateTime.now(),
+          'latency_ms': 0,
+          'trace_id': '',
+          'prompt_version': afterVersion,
+          'hallucination_score': afterHallucination,
+          'relevance_score': afterRelevance,
+          'healing_stage': 'After healing',
+        });
+      }
+    }
+    hallucinationRate = _estimateHallucinationRate();
   }
 
   void _saveState() {
@@ -836,6 +891,7 @@ class _MessageBubble extends StatelessWidget {
     final isUser = message['role'] == 'user';
     final content = message['content']?.toString() ?? '';
     final traceId = message['trace_id']?.toString() ?? '';
+    final healingStage = message['healing_stage']?.toString() ?? '';
     final hallucination = _asDouble(message['hallucination_score'], 0.0);
     final relevance = _asDouble(message['relevance_score'], 0.0);
     final timestamp = message['timestamp'] is DateTime
@@ -942,6 +998,31 @@ class _MessageBubble extends StatelessWidget {
                     value: relevance,
                     color: _scoreColor(1 - relevance),
                   ),
+                  if (healingStage.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            (healingStage == 'After healing'
+                                    ? success
+                                    : warning)
+                                .withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        healingStage,
+                        style: TextStyle(
+                          color: healingStage == 'After healing'
+                              ? success
+                              : warning,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   if (possibleHallucination)
                     Container(
                       padding: const EdgeInsets.symmetric(

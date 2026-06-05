@@ -11,6 +11,7 @@ import json
 import uuid
 import uuid as uuid_module
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -188,6 +189,48 @@ async def _auto_heal_chat(
         after_answer,
         chat_agent.prompt_version,
     )
+    try:
+        improvement_percent = (
+            0.0
+            if before_scores["hallucination_score"] <= 0
+            else (
+                (
+                    before_scores["hallucination_score"]
+                    - after_scores["hallucination_score"]
+                )
+                / before_scores["hallucination_score"]
+            )
+            * 100
+        )
+        after_eval = SimpleNamespace(
+            hallucination_score=after_scores["hallucination_score"],
+            relevance_score=after_scores["relevance_score"],
+            latency_ms=float(healed.get("latency_ms", 0)),
+            trace_scores=[],
+            problematic_traces=[],
+        )
+        after_verification = SimpleNamespace(
+            improved=True,
+            improvement_percent=improvement_percent,
+            before_scores={
+                "hallucination_score": before_scores["hallucination_score"],
+                "relevance_score": before_scores["relevance_score"],
+                "latency_ms": 0.0,
+            },
+            after_scores={
+                "hallucination_score": after_scores["hallucination_score"],
+                "relevance_score": after_scores["relevance_score"],
+                "latency_ms": float(healed.get("latency_ms", 0)),
+            },
+        )
+        await _metrics_store.save_run_metrics(
+            f"chat-healed-{uuid_module.uuid4().hex[:8]}",
+            after_eval,
+            after_verification,
+        )
+        await websocket_manager.broadcast("metrics_updated")
+    except Exception as exc:
+        print(f"⚠️ Chat healed metrics save failed (non-critical): {exc}")
     payload = {
         "pairs": [
             {

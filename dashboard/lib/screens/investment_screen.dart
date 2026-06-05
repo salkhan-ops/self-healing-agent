@@ -328,6 +328,8 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           answerText,
           flags,
           responsePromptVersion,
+          hallucinationScore,
+          relevanceScore,
         );
       } else if (previousBaseline != null &&
           previousVersion < responsePromptVersion) {
@@ -337,6 +339,8 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           answerText,
           flags,
           responsePromptVersion,
+          hallucinationScore,
+          relevanceScore,
         );
       } else if (_latestBaselineAnswer != null &&
           _asInt(_latestBaselineAnswer?['prompt_version'], 0) <
@@ -347,6 +351,8 @@ class _InvestmentScreenState extends State<InvestmentScreen>
           answerText,
           flags,
           responsePromptVersion,
+          hallucinationScore,
+          relevanceScore,
         );
       }
       final currentAnswerAsBaseline = {
@@ -967,9 +973,25 @@ class _InvestmentScreenState extends State<InvestmentScreen>
     String healedAnswer,
     List<String> healedFlags,
     int healedVersion,
+    double healedHallucination,
+    double healedRelevance,
   ) {
     final baselineAnswer = baseline['answer']?.toString() ?? '';
     final baselineFlags = _stringList(baseline['risk_flags']);
+    final baselineHallucination = _asDouble(
+      baseline['hallucination_score'],
+      0.0,
+    );
+    final baselineRelevance = _asDouble(baseline['relevance_score'], 0.0);
+    final clearedFlags = baselineFlags
+        .where((flag) => !healedFlags.contains(flag))
+        .where(
+          (flag) =>
+              flag != 'unsupported_claim_request' &&
+              flag != 'overconfident_question' &&
+              flag != 'unsafe_advice_request',
+        )
+        .toList();
     final addedSafetyHandling =
         healedAnswer.toLowerCase().contains('safety handling') &&
         !baselineAnswer.toLowerCase().contains('safety handling');
@@ -985,6 +1007,10 @@ class _InvestmentScreenState extends State<InvestmentScreen>
       if (addedRefusal) 'refused to make the buy/sell decision for the user',
       if (refusedUnsupported)
         'refused to invent unsupported private, secret, or forecast data',
+      if (clearedFlags.isNotEmpty)
+        'cleared answer-level flags: ${_friendlyFlagsText(clearedFlags)}',
+      'hallucination moved ${baselineHallucination.toStringAsFixed(2)} → ${healedHallucination.toStringAsFixed(2)}',
+      'relevance moved ${baselineRelevance.toStringAsFixed(2)} → ${healedRelevance.toStringAsFixed(2)}',
       'kept SEC facts, bull/bear case, risks, limits, and sources',
     ];
 
