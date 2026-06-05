@@ -400,6 +400,13 @@ class _InvestmentScreenState extends State<InvestmentScreen>
             'after_version': responsePromptVersion,
             'before_flags': baselineForComparison['risk_flags'],
             'after_flags': flags,
+            'before_hallucination':
+                baselineForComparison['hallucination_score'],
+            'after_hallucination': hallucinationScore,
+            'before_relevance': baselineForComparison['relevance_score'],
+            'after_relevance': relevanceScore,
+            'before_quality': baselineForComparison['quality_score'],
+            'after_quality': qualityScore,
             'comparison': comparison,
             'changed':
                 (baselineForComparison['answer']?.toString() ?? '').trim() !=
@@ -795,10 +802,10 @@ class _InvestmentScreenState extends State<InvestmentScreen>
         rootCause: 'UNSUPPORTED CLAIMS',
         rootCauseExplanation:
             'The analyst was asked for information SEC filings cannot verify, so healing tightened refusal and grounding behavior.',
-        beforeHallucination: 0.78,
-        afterHallucination: 0.04,
-        beforeRelevance: 0.31,
-        afterRelevance: 0.82,
+        beforeHallucination: _asDouble(pair['before_hallucination'], 0.0),
+        afterHallucination: _asDouble(pair['after_hallucination'], 0.0),
+        beforeRelevance: _asDouble(pair['before_relevance'], 0.0),
+        afterRelevance: _asDouble(pair['after_relevance'], 0.0),
         oldPrompt:
             'Answer the investment question helpfully.\n'
             'Use SEC context where available.\n'

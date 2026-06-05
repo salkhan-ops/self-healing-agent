@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
@@ -21,6 +22,7 @@ from backend.services.investment_history_store import (
     add_investment_entry,
     clear_investment_entries,
 )
+from backend.services.metrics_store import MetricsStore
 from backend.services.trace_evidence_store import trace_evidence_store
 from config.settings import AGENT_RUN_TIMEOUT_SECONDS
 
@@ -29,6 +31,7 @@ router = APIRouter(prefix="/api/investment", tags=["investment"])
 sessions: dict[str, list["InvestmentMessage"]] = {}
 MAX_SESSION_MESSAGES = 50
 _healing_lock = asyncio.Lock()
+_metrics_store = MetricsStore()
 
 
 class InvestmentRequest(BaseModel):
@@ -128,6 +131,36 @@ async def send_investment_message(payload: InvestmentRequest) -> InvestmentRespo
                 "quality_score": evaluation["quality_score"],
             },
         )
+        try:
+            latency_ms = float(result.get("latency_ms", 0))
+            metric_scores = {
+                "hallucination_score": evaluation["hallucination_score"],
+                "relevance_score": evaluation["relevance_score"],
+                "latency_ms": latency_ms,
+            }
+            metric_eval = SimpleNamespace(
+                hallucination_score=evaluation["hallucination_score"],
+                relevance_score=evaluation["relevance_score"],
+                latency_ms=latency_ms,
+                trace_scores=[],
+                problematic_traces=[],
+            )
+            metric_verification = SimpleNamespace(
+                improved=True,
+                improvement_percent=0.0,
+                before_scores=metric_scores,
+                after_scores=metric_scores,
+            )
+
+            run_id = f"investment-{uuid.uuid4().hex[:8]}"
+            await _metrics_store.save_run_metrics(
+                run_id,
+                metric_eval,
+                metric_verification,
+            )
+            await websocket_manager.broadcast("metrics_updated")
+        except Exception as exc:
+            print(f"⚠️ Investment metrics save failed (non-critical): {exc}")
         await websocket_manager.broadcast(f"investment_update:{session_id}:v{prompt_version}")
         return InvestmentResponse(session_id=session_id, **result)
     except Exception as exc:
@@ -193,15 +226,15 @@ async def heal_investment() -> dict[str, Any]:
                 "question": verification.get("question", ""),
                 "answer": "",
                 "prompt_version": investment_agent.prompt_version - 1,
-                "hallucination_score": 0.0,
-                "relevance_score": 0.0,
+                "hallucination_score": healing.before_scores.get("hallucination_score", 0.0),
+                "relevance_score": healing.before_scores.get("relevance_score", 0.0),
             },
             after={
                 "question": verification.get("question", ""),
                 "answer": verification.get("answer", ""),
                 "prompt_version": investment_agent.prompt_version,
-                "hallucination_score": 0.0,
-                "relevance_score": 0.0,
+                "hallucination_score": healing.after_scores.get("hallucination_score", 0.0),
+                "relevance_score": healing.after_scores.get("relevance_score", 0.0),
             },
             verification_results=healing.after_scores,
         )

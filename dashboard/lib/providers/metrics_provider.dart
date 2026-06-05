@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/api_client.dart';
+import '../core/websocket.dart';
 import '../models/metric.dart';
 
 class MetricsProvider extends ChangeNotifier {
@@ -12,9 +13,12 @@ class MetricsProvider extends ChangeNotifier {
       loadSummary();
       loadChartData(selectedPeriod);
     });
+    _listenForUpdates(_webSocketClient.messageStream);
+    _webSocketClient.connect();
   }
 
   final ApiClient _apiClient;
+  final WebSocketClient _webSocketClient = WebSocketClient();
   Timer? _refreshTimer;
   StreamSubscription<String>? _webSocketSubscription;
 
@@ -50,7 +54,7 @@ class MetricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void listenForUpdates(Stream<String> messageStream) {
+  void _listenForUpdates(Stream<String> messageStream) {
     _webSocketSubscription?.cancel();
     _webSocketSubscription = messageStream.listen((message) {
       if (message == 'metrics_updated' ||
@@ -66,6 +70,7 @@ class MetricsProvider extends ChangeNotifier {
   void dispose() {
     _refreshTimer?.cancel();
     _webSocketSubscription?.cancel();
+    _webSocketClient.dispose();
     _apiClient.close();
     super.dispose();
   }

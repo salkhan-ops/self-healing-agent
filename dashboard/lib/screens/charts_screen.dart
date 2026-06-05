@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../core/responsive.dart';
 import '../core/theme.dart';
-import '../core/websocket.dart';
 import '../providers/metrics_provider.dart';
 
 class ChartsScreen extends StatefulWidget {
@@ -18,23 +17,14 @@ class ChartsScreen extends StatefulWidget {
 
 class _ChartsScreenState extends State<ChartsScreen> {
   final periods = const ['hour', 'day', 'week', 'month', 'year'];
-  late final WebSocketClient webSocketClient;
 
   @override
   void initState() {
     super.initState();
-    webSocketClient = WebSocketClient()..connect();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<MetricsProvider>();
-      provider.listenForUpdates(webSocketClient.messageStream);
       provider.loadChartData('day');
     });
-  }
-
-  @override
-  void dispose() {
-    webSocketClient.dispose();
-    super.dispose();
   }
 
   @override
