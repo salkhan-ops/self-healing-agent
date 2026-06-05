@@ -317,7 +317,7 @@ class _PostScreenState extends State<PostScreen> {
                       SnackBar(
                         content: Text(
                           result['message']?.toString() ??
-                              'Public demo limit reached.',
+                              'Public run limit reached.',
                         ),
                       ),
                     );

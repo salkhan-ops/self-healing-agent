@@ -80,7 +80,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
               'The support workflow evaluates the answer against FAQ-grounded expectations. When hallucination is high or relevance is weak, the system diagnoses the pattern and rewrites the prompt toward grounded behavior. The healed prompt instructs the agent to use the FAQ and to admit uncertainty when the answer is not present.',
         ),
         _ArticleSection(
-          heading: 'Demo value',
+          heading: 'Product value',
           body:
               'The judge can ask a policy question, see the initial response, trigger healing, and inspect the before and after report. The important outcome is measurable: lower hallucination, higher relevance, and a final answer that fits the knowledge base.',
         ),
@@ -104,7 +104,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
               'The social media healer compares the brief to the generated post, scores hallucination and relevance, and patches the prompt with stricter grounding rules. The UI keeps the before post, healed post, root cause, and prompt patch visible so the improvement is not hidden behind a regenerate button.',
         ),
         _ArticleSection(
-          heading: 'Demo value',
+          heading: 'Product value',
           body:
               'The post workflow shows a clean business story for hackathon judging: the agent catches exaggerated language, rewrites its own instructions, and produces a safer post using the same user brief.',
         ),
@@ -128,7 +128,7 @@ class _ResourcesScreenState extends State<ResourcesScreen> {
               'The investment workflow combines SEC context with evaluation of grounding, risk flags, and answer quality. If the answer drifts away from filings or makes unsafe claims, the healing path tightens the prompt around sourced facts, cautious language, and visible limitations.',
         ),
         _ArticleSection(
-          heading: 'Demo value',
+          heading: 'Product value',
           body:
               'This use case shows why self-healing is not only for chatbots. The same trace, score, diagnose, patch, and verify loop can protect workflows where factual grounding matters more than style.',
         ),

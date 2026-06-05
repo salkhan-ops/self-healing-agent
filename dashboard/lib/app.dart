@@ -271,12 +271,12 @@ class _SettingsScreenState extends State<_SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Reset Demo State',
+                      'Reset Agent State',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Use these controls when you want a clean prompt v1 demo for a specific agent. They clear backend-held history for that surface.',
+                      'Use these controls when you want a clean prompt v1 run for a specific agent. They clear backend-held history for that surface.',
                     ),
                     const SizedBox(height: 14),
                     Wrap(

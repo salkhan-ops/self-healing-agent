@@ -1,4 +1,4 @@
-/// iMessage-style chat demo for the self-healing customer support agent.
+/// iMessage-style chat for the self-healing customer support agent.
 ///
 /// This screen talks directly to the FastAPI chat endpoints and listens for
 /// WebSocket prompt-update events so users can watch self-healing happen live.
@@ -734,7 +734,7 @@ class _TopBar extends StatelessWidget {
                             SnackBar(
                               content: Text(
                                 result['message']?.toString() ??
-                                    'Public demo limit reached.',
+                                    'Public run limit reached.',
                               ),
                             ),
                           );

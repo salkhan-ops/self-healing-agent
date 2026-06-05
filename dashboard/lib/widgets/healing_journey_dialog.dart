@@ -536,7 +536,7 @@ class _Step5BeforeAfter extends StatelessWidget {
                     'We currently ship only within the United States. International shipping is not available.',
                 changed: true,
               ));
-    final pair = _substantiveDemoPair(sourcePair);
+    final pair = _substantiveComparisonPair(sourcePair);
     return _StepShell(
       child: Column(
         children: [
@@ -554,7 +554,7 @@ class _Step5BeforeAfter extends StatelessWidget {
     );
   }
 
-  ComparisonPair _substantiveDemoPair(ComparisonPair pair) {
+  ComparisonPair _substantiveComparisonPair(ComparisonPair pair) {
     final question = pair.question.trim().toLowerCase();
     final before = pair.before.trim().toLowerCase();
     final after = pair.after.trim().toLowerCase();

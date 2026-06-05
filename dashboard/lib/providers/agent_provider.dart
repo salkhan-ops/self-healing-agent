@@ -21,18 +21,17 @@ class AgentProvider extends ChangeNotifier {
   bool isStopping = false;
   List<String> liveOutput = [];
 
-  static const _publicDemoRunUsedKey = 'public_demo_agent_control_used';
-  static const _publicDemoRunCountKey = 'public_demo_agent_control_run_count';
-  static const _publicDemoLocalRunLimit = 3;
+  static const _publicRunUsedKey = 'public_agent_control_used';
+  static const _publicRunCountKey = 'public_agent_control_run_count';
+  static const _publicRunLocalLimit = 3;
 
   Future<Map<String, dynamic>> runNow() async {
-    if (AppConfig.publicDemoMode &&
-        _publicDemoRunsUsed() >= _publicDemoLocalRunLimit) {
+    if (AppConfig.publicDemoMode && _publicRunsUsed() >= _publicRunLocalLimit) {
       final result = {
         'run_id': '',
         'status': 'disabled',
         'message':
-            'Public demo allows $_publicDemoLocalRunLimit full Agent Control runs per browser.',
+            'Public mode allows $_publicRunLocalLimit full Agent Control runs per browser.',
       };
       liveOutput.add(result['message']!);
       notifyListeners();
@@ -51,11 +50,8 @@ class AgentProvider extends ChangeNotifier {
       isRunning = true;
       liveOutput.add('Agent run started: ${result['run_id'] ?? ''}');
       if (AppConfig.publicDemoMode && result['status'] == 'started') {
-        BrowserStorage.setInt(
-          _publicDemoRunCountKey,
-          _publicDemoRunsUsed() + 1,
-        );
-        BrowserStorage.setBool(_publicDemoRunUsedKey, true);
+        BrowserStorage.setInt(_publicRunCountKey, _publicRunsUsed() + 1);
+        BrowserStorage.setBool(_publicRunUsedKey, true);
       }
       await loadStatus();
       notifyListeners();
@@ -63,12 +59,12 @@ class AgentProvider extends ChangeNotifier {
     return result;
   }
 
-  int _publicDemoRunsUsed() {
-    final count = BrowserStorage.getInt(_publicDemoRunCountKey);
+  int _publicRunsUsed() {
+    final count = BrowserStorage.getInt(_publicRunCountKey);
     if (count > 0) {
       return count;
     }
-    return BrowserStorage.getBool(_publicDemoRunUsedKey) ? 1 : 0;
+    return BrowserStorage.getBool(_publicRunUsedKey) ? 1 : 0;
   }
 
   Future<Map<String, dynamic>> stopNow() async {

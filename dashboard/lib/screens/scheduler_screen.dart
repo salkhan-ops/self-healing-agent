@@ -61,7 +61,7 @@ class _SchedulerScreenState extends State<SchedulerScreen> {
               ),
               if (AppConfig.publicDemoMode) ...[
                 const SizedBox(height: 12),
-                const _SchedulerDemoNotice(),
+                const _SchedulerPublicNotice(),
               ],
               const SizedBox(height: 16),
               Expanded(
@@ -256,8 +256,8 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-class _SchedulerDemoNotice extends StatelessWidget {
-  const _SchedulerDemoNotice();
+class _SchedulerPublicNotice extends StatelessWidget {
+  const _SchedulerPublicNotice();
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +275,7 @@ class _SchedulerDemoNotice extends StatelessWidget {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Public demo mode: scheduler planning is visible, but background scheduled runs are preview-only to prevent unexpected API cost. Turn PUBLIC_DEMO_MODE=false for production automation.',
+              'Public mode: scheduler planning is visible, but background scheduled runs are preview-only to prevent unexpected API cost. Turn PUBLIC_DEMO_MODE=false for production automation.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w700,
@@ -379,7 +379,7 @@ class _ScheduleListCard extends StatelessWidget {
             const SizedBox(height: 6),
             const Text(
               AppConfig.publicDemoMode
-                  ? 'Preview schedules without starting background agent runs in public demo mode.'
+                  ? 'Preview schedules without starting background agent runs in public mode.'
                   : 'Recurring runs use the same self-healing loop as Agent Control, scheduled at safe intervals.',
               style: TextStyle(
                 color: AppColors.textSecondary,
@@ -733,7 +733,7 @@ class _UpcomingRunsCard extends StatelessWidget {
             const SizedBox(height: 6),
             const Text(
               AppConfig.publicDemoMode
-                  ? 'Preview windows only; public demo mode will not execute background runs.'
+                  ? 'Preview windows only; public mode will not execute background runs.'
                   : 'Upcoming automation windows based on active intervals.',
               style: TextStyle(
                 color: AppColors.textSecondary,

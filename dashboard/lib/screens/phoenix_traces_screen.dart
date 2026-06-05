@@ -319,7 +319,7 @@ class _TimelineCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Hackathon Demo Mode',
+              'Hackathon Run Mode',
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),

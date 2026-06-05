@@ -104,7 +104,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                                       SnackBar(
                                         content: Text(
                                           result['message']?.toString() ??
-                                              'Public demo limit reached.',
+                                              'Public run limit reached.',
                                         ),
                                       ),
                                     );
@@ -150,7 +150,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
                     _StatusBadge(label: statusLabel, running: agent.isRunning),
                     if (AppConfig.publicDemoMode) ...[
                       const SizedBox(height: 12),
-                      const _PublicDemoAgentNotice(),
+                      const _PublicRunNotice(),
                     ],
                   ],
                 ),
@@ -174,7 +174,7 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Run full self-healing loop?'),
         content: const Text(
-          'This starts the full multi-agent loop: chat, posts, investment, evaluation, prompt healing, and verification. It may take 1–2 minutes. Public demo mode allows three full runs per browser, enough to judge each use case once.\n\nUse one demo run now?',
+          'This starts the full multi-agent loop: chat, posts, investment, evaluation, prompt healing, and verification. It may take 1-2 minutes. Public mode allows three full runs per browser, enough to evaluate each use case once.\n\nUse one run now?',
         ),
         actions: [
           TextButton(
@@ -283,8 +283,8 @@ class _AgentControlScreenState extends State<AgentControlScreen> {
   }
 }
 
-class _PublicDemoAgentNotice extends StatelessWidget {
-  const _PublicDemoAgentNotice();
+class _PublicRunNotice extends StatelessWidget {
+  const _PublicRunNotice();
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +308,7 @@ class _PublicDemoAgentNotice extends StatelessWidget {
             SizedBox(width: 8),
             Flexible(
               child: Text(
-                'Public demo mode: three full loops per browser, plus lightweight feature-tab testing.',
+                'Public mode: three full loops per browser, plus lightweight feature-tab testing.',
                 style: TextStyle(
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w700,
