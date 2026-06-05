@@ -22,7 +22,12 @@ from backend.services.post_healer import post_healer
 from backend.services.post_history_store import add_post, clear_posts, list_posts
 from backend.services.post_scorer import post_scorer
 from backend.services.trace_evidence_store import trace_evidence_store
-from config.settings import AGENT_RUN_TIMEOUT_SECONDS, PUBLIC_DEMO_HEALING_RUN_LIMIT, PUBLIC_DEMO_MODE
+from config.settings import (
+    AGENT_RUN_TIMEOUT_SECONDS,
+    LLM_TIMEOUT_SECONDS,
+    PUBLIC_DEMO_HEALING_RUN_LIMIT,
+    PUBLIC_DEMO_MODE,
+)
 
 try:
     from opentelemetry import trace
@@ -36,6 +41,7 @@ _healing_limiter = InMemoryDemoLimiter(
     limit=PUBLIC_DEMO_HEALING_RUN_LIMIT,
 )
 _healing_lock = asyncio.Lock()
+POST_SCORING_TIMEOUT_SECONDS = 12
 
 class PostRequest(BaseModel):
     brief: str = Field(min_length=1)
@@ -56,19 +62,29 @@ class PostResponse(BaseModel):
 async def generate_post(payload: PostRequest) -> PostResponse:
     """Generate a social media post from a raw brief."""
     try:
-        result = await asyncio.to_thread(
-            post_agent.generate,
-            payload.brief,
-            payload.platform,
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                post_agent.generate,
+                payload.brief,
+                payload.platform,
+            ),
+            timeout=LLM_TIMEOUT_SECONDS,
         )
         post_text = str(result.get("post", ""))
         prompt_version = int(result.get("prompt_version", 1))
-        scores = await asyncio.to_thread(
-            post_scorer.score,
-            payload.brief,
-            post_text,
-            prompt_version,
-        )
+        try:
+            scores = await asyncio.wait_for(
+                asyncio.to_thread(
+                    post_scorer.score,
+                    payload.brief,
+                    post_text,
+                    prompt_version,
+                ),
+                timeout=POST_SCORING_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            print("⚠️ Post scoring timed out, using rule-based score.")
+            scores = post_scorer._score_with_rules(payload.brief, post_text)
 
         entry = {
             "id": uuid_module.uuid4().hex[:8],
