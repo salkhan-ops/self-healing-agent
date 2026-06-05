@@ -62,14 +62,24 @@ class PostResponse(BaseModel):
 async def generate_post(payload: PostRequest) -> PostResponse:
     """Generate a social media post from a raw brief."""
     try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(
-                post_agent.generate,
-                payload.brief,
-                payload.platform,
-            ),
-            timeout=LLM_TIMEOUT_SECONDS,
-        )
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    post_agent.generate,
+                    payload.brief,
+                    payload.platform,
+                ),
+                timeout=LLM_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            print("⚠️ Post generation timed out, using grounded fallback post.")
+            result = {
+                "post": _fallback_post(payload.brief, payload.platform),
+                "platform": payload.platform,
+                "latency_ms": int(LLM_TIMEOUT_SECONDS * 1000),
+                "trace_id": f"post-timeout-{uuid_module.uuid4().hex[:8]}",
+                "prompt_version": post_agent.prompt_version,
+            }
         post_text = str(result.get("post", ""))
         prompt_version = int(result.get("prompt_version", 1))
         try:
@@ -149,6 +159,16 @@ async def generate_post(payload: PostRequest) -> PostResponse:
             status_code=500,
             detail=f"Post generation failed: {exc}",
         ) from exc
+
+
+def _fallback_post(brief: str, platform: str) -> str:
+    """Return a concise grounded post when Gemini is slow or unavailable."""
+    clean_brief = " ".join(brief.split())
+    if platform == "twitter":
+        return clean_brief[:260]
+    if platform == "facebook":
+        return f"Update from the team: {clean_brief}"
+    return f"Team update:\n\n{clean_brief}\n\nWhat would you like us to share next?"
 
 
 @router.get("/history")
