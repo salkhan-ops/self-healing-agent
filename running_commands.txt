@@ -32,7 +32,7 @@ gcloud run deploy self-healing-agent \
   --allow-unauthenticated \
   --clear-base-image \
   --memory=1Gi \
-  --set-env-vars PUBLIC_DEMO_MODE=true,PUBLIC_DEMO_AGENT_RUN_LIMIT=3,PUBLIC_DEMO_HEALING_RUN_LIMIT=3,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024,APP_ENV=production,PHOENIX_HOST=https://phoenix-server-fwelzysgnq-uc.a.run.app,PHOENIX_COLLECTOR_ENDPOINT=https://phoenix-server-fwelzysgnq-uc.a.run.app/v1/traces,PHOENIX_PROJECT_NAME=self-healing-agent,PHOENIX_MCP_PROJECT_IDENTIFIER=self-healing-agent
+  --set-env-vars PUBLIC_DEMO_MODE=false,PUBLIC_DEMO_AGENT_RUN_LIMIT=3,PUBLIC_DEMO_HEALING_RUN_LIMIT=3,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024,APP_ENV=production,PHOENIX_HOST=https://phoenix-server-fwelzysgnq-uc.a.run.app,PHOENIX_COLLECTOR_ENDPOINT=https://phoenix-server-fwelzysgnq-uc.a.run.app/v1/traces,PHOENIX_PROJECT_NAME=self-healing-agent,PHOENIX_MCP_PROJECT_IDENTIFIER=self-healing-agent
 
 gcloud run services update self-healing-agent \
   --project "$SELF_HEALING_GCP_PROJECT" \
@@ -42,7 +42,7 @@ gcloud run services update self-healing-agent \
   --cpu-throttling
 
 cd /Users/salmankhan/StudioProjects/self-healing-agent
-PUBLIC_DEMO_MODE=true \
+PUBLIC_DEMO_MODE=false \
 API_BASE_URL="$SELF_HEALING_BACKEND_URL" \
 ./scripts/deploy_flutter_web_to_pages.sh
 
