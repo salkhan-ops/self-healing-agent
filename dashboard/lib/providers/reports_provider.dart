@@ -12,6 +12,7 @@ class ReportsProvider extends ChangeNotifier {
   List<Report> reports = [];
   Report? selectedReport;
   bool isLoading = false;
+  bool isClearing = false;
 
   Future<void> loadReports() async {
     isLoading = true;
@@ -36,6 +37,21 @@ class ReportsProvider extends ChangeNotifier {
 
     isLoading = false;
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> clearReports() async {
+    isClearing = true;
+    notifyListeners();
+
+    final result = await _apiClient.clearReports();
+    if (result['error'] != true) {
+      reports = [];
+      selectedReport = null;
+    }
+
+    isClearing = false;
+    notifyListeners();
+    return result;
   }
 
   @override

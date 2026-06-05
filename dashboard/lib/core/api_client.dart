@@ -28,6 +28,10 @@ class ApiClient {
     return _getMap('/api/reports/$id');
   }
 
+  Future<Map<String, dynamic>> clearReports() {
+    return _deleteMap('/api/reports');
+  }
+
   Future<List<dynamic>> getSchedules() {
     return _getList('/api/schedules');
   }

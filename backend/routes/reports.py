@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import csv
 from io import StringIO
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import Report, get_session
@@ -19,6 +20,8 @@ from backend.models import ReportResponse
 
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+REPORTS_DIR = PROJECT_ROOT / "reports"
 
 
 @router.get("", response_model=list[ReportResponse])
@@ -40,6 +43,30 @@ async def get_report(report_id: int, session: AsyncSession = Depends(get_session
         raise HTTPException(status_code=404, detail="Report not found.")
 
     return report
+
+
+@router.delete("")
+async def clear_reports(session: AsyncSession = Depends(get_session)) -> dict[str, int]:
+    """Delete saved report rows and generated report text files."""
+    try:
+        result = await session.execute(delete(Report))
+        await session.commit()
+        deleted_rows = int(result.rowcount or 0)
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not clear reports: {exc}") from exc
+
+    deleted_files = 0
+    try:
+        if REPORTS_DIR.exists():
+            for report_file in REPORTS_DIR.glob("report_*.txt"):
+                if report_file.is_file():
+                    report_file.unlink()
+                    deleted_files += 1
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Could not delete report files: {exc}") from exc
+
+    return {"deleted_reports": deleted_rows, "deleted_files": deleted_files}
 
 
 @router.get("/{report_id}/export")

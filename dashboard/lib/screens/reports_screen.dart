@@ -43,9 +43,31 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Reports',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'Reports',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: provider.reports.isEmpty || provider.isClearing
+                        ? null
+                        : () => _confirmClearReports(context, provider),
+                    icon: provider.isClearing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_sweep_rounded),
+                    label: Text(
+                      provider.isClearing ? 'Clearing...' : 'Clear reports',
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               TextField(
@@ -167,6 +189,61 @@ class _ReportsScreenState extends State<ReportsScreen> {
     });
 
     return filtered;
+  }
+
+  Future<void> _confirmClearReports(
+    BuildContext context,
+    ReportsProvider provider,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear reports?'),
+        content: const Text(
+          'This deletes saved report rows and generated report text files from the backend.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.delete_sweep_rounded),
+            label: const Text('Clear reports'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await provider.clearReports();
+    if (!context.mounted) {
+      return;
+    }
+
+    if (result['error'] == true) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result['message']?.toString() ?? 'Could not clear reports.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Cleared ${result['deleted_reports'] ?? 0} reports and ${result['deleted_files'] ?? 0} files.',
+        ),
+      ),
+    );
   }
 }
 

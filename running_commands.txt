@@ -52,5 +52,5 @@ API_BASE_URL="$SELF_HEALING_BACKEND_URL" \
 cd /Users/salmankhan/StudioProjects/self-healing-agent-landing
 git status
 git add .
-git commit -m "updated UI and backend"
+git commit -m "clear report cache"
 git push
