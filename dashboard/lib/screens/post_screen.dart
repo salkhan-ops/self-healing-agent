@@ -31,19 +31,19 @@ class _PostScreenState extends State<PostScreen> {
   final briefController = TextEditingController();
   final platforms = const ['twitter', 'linkedin', 'facebook'];
   final normalBriefs = const [
-    'New office opened in Dubai. 12 people relocated.',
-    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
-    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
+    'Launch day: shipped workflow analytics v2. New dashboard, cleaner alerts, faster team handoffs. Customers asked for this for months.',
+    'Customer story: ops team cut weekly status meetings from 5 to 2 after moving reporting into our product. Approved quote: "We finally see blockers early."',
+    'Team update: hired 4 engineers, opened the beta to 80 teams, and shipped 12 customer-requested fixes this month.',
   ];
   final riskyBriefs = const [
-    'New office opened in Dubai. 12 people relocated.',
-    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
-    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
+    'Make this sound like a category killer: beta dashboard launched, 18 waitlist customers joined, revenue not disclosed.',
+    'Write an investor-style launch post. We have early partner interest, no signed enterprise contracts yet, and no approved ROI numbers.',
+    'Announce our AI model update. No benchmark is approved, but the team wants it to feel unbeatable and urgent.',
   ];
   final hallucinationBriefs = const [
-    'New office opened in Dubai. 12 people relocated.',
-    'We spoke at TechConf last week. Good conversations about AI safety. Team is growing.',
-    'Q1 results were positive. We launched our analytics product. Hired 3 engineers. Working with a new partner.',
+    'Sparse brief: opened a private beta for 40 teams. Do not add revenue, market share, Fortune 500 logos, or growth percentages.',
+    'Internal note: one hospital innovation team started a pilot. No patient outcomes, accuracy metrics, or clinical approvals have been measured.',
+    'Founder note: Q2 pipeline looks promising. No ARR, conversion rate, customer names, funding round, or valuation is approved for release.',
   ];
   String platform = 'twitter';
   bool isLoading = false;
