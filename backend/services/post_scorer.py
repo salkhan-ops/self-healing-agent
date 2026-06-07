@@ -41,6 +41,16 @@ INVENTION_PHRASES = [
     "explosive",
     "viral",
     "keynote",
+    "fortune 500",
+    "market share",
+    "arr",
+    "valuation",
+    "funding round",
+    "conversion rate",
+    "patient outcomes",
+    "clinical approvals",
+    "signed enterprise contracts",
+    "roi",
 ]
 
 GROUNDED_PHRASES = [
@@ -120,10 +130,8 @@ Return ONLY valid JSON, no other text:
 
         unsupported_hype_count = self._unsupported_hype_count(brief, post)
         judge_hallucination = float(max(0.0, min(1.0, parsed["hallucination_score"])))
-        calibrated_hallucination = max(
-            judge_hallucination,
-            min(0.08 + unsupported_hype_count * 0.22, 0.95),
-        )
+        rule_hallucination = self._hallucination_from_count(unsupported_hype_count)
+        calibrated_hallucination = max(judge_hallucination, rule_hallucination)
 
         return {
             "hallucination_score": calibrated_hallucination,
@@ -133,9 +141,10 @@ Return ONLY valid JSON, no other text:
 
     def _score_with_rules(self, brief: str, post: str) -> dict[str, float]:
         """Rule-based fallback for invented facts and brief overlap."""
-        post_lower = post.lower()
-        brief_lower = brief.lower()
+        post_lower = post.lower().replace("-", " ")
+        brief_lower = brief.lower().replace("-", " ")
         invented = self._unsupported_hype_count(brief, post)
+        invented += self._forbidden_term_count(brief, post)
 
         percentages_in_post = re.findall(r"\d+%", post_lower)
         percentages_in_brief = re.findall(r"\d+%", brief_lower)
@@ -146,9 +155,10 @@ Return ONLY valid JSON, no other text:
         expansion_claims_in_brief = re.findall(r"\b\d+(?:\.\d+)?x\b", brief_lower)
         invented += len(set(expansion_claims) - set(expansion_claims_in_brief)) * 2
 
-        hallucination = min(0.08 + invented * 0.22, 0.95)
+        hallucination = self._hallucination_from_count(invented)
 
-        brief_words = set(re.findall(r"[a-z0-9]+", brief_lower))
+        relevance_brief = self._brief_text_for_relevance(brief_lower)
+        brief_words = set(re.findall(r"[a-z0-9]+", relevance_brief))
         post_words = set(re.findall(r"[a-z0-9]+", post_lower))
         stopwords = {
             "the",
@@ -181,13 +191,84 @@ Return ONLY valid JSON, no other text:
 
     def _unsupported_hype_count(self, brief: str, post: str) -> int:
         """Count hype or invention phrases present only in the generated post."""
-        brief_lower = brief.lower()
-        post_lower = post.lower()
+        brief_lower = brief.lower().replace("-", " ")
+        post_lower = post.lower().replace("-", " ")
         return sum(
             1
             for phrase in INVENTION_PHRASES
             if phrase in post_lower and phrase not in brief_lower
         )
+
+    def _forbidden_term_count(self, brief: str, post: str) -> int:
+        """Count terms the brief explicitly says are unavailable or forbidden."""
+        brief_lower = brief.lower().replace("-", " ")
+        post_lower = post.lower().replace("-", " ")
+        forbidden_terms = [
+            "revenue",
+            "market share",
+            "fortune 500",
+            "growth percentage",
+            "growth percentages",
+            "arr",
+            "conversion rate",
+            "customer names",
+            "funding round",
+            "valuation",
+            "patient outcomes",
+            "accuracy metrics",
+            "clinical approvals",
+            "benchmark",
+            "signed enterprise contracts",
+            "roi",
+        ]
+        count = 0
+        for term in forbidden_terms:
+            if term not in post_lower:
+                continue
+            brief_forbids_term = (
+                f"no {term}" in brief_lower
+                or f"not add {term}" in brief_lower
+                or f"not approved" in brief_lower and term in brief_lower
+                or f"not disclosed" in brief_lower and term in brief_lower
+                or f"not measured" in brief_lower and term in brief_lower
+                or f"not been measured" in brief_lower and term in brief_lower
+            )
+            post_negates_term = (
+                f"no {term}" in post_lower
+                or f"not {term}" in post_lower
+                or f"{term} not" in post_lower
+                or f"{term} is not" in post_lower
+            )
+            if brief_forbids_term and not post_negates_term:
+                count += 2
+        return count
+
+    def _hallucination_from_count(self, invented: int) -> float:
+        """Return 0.0 for clean posts so the UI does not imply tiny healing risk."""
+        if invented <= 0:
+            return 0.0
+        return min(0.08 + invented * 0.22, 0.95)
+
+    def _brief_text_for_relevance(self, brief_lower: str) -> str:
+        """Remove safety instructions so relevance measures the actual update."""
+        sentences = re.split(r"(?<=[.!?])\s+", brief_lower)
+        keep = [
+            sentence
+            for sentence in sentences
+            if not any(
+                marker in sentence
+                for marker in [
+                    "do not add",
+                    " not add ",
+                    "no ",
+                    "not approved",
+                    "not disclosed",
+                    "not measured",
+                    "not been measured",
+                ]
+            )
+        ]
+        return " ".join(keep) if keep else brief_lower
 
     def _rules_are_confident(self, score: dict[str, float]) -> bool:
         """Avoid LLM judging when cheap rules are already decisive."""

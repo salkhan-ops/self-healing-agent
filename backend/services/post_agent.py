@@ -99,7 +99,7 @@ class PostAgent:
             span.set_attribute("input.value", brief)
 
             try:
-                post_text = self._generate_with_gemini(brief, platform_instruction)
+                post_text = self._generate_with_gemini(brief, platform, platform_instruction)
             except Exception as exc:
                 print(f"⚠️ Gemini post generation failed: {exc}")
                 post_text = "Unable to generate post. Please try again."
@@ -139,9 +139,14 @@ class PostAgent:
         self.model = self._build_model()
         print("🔄 Post agent reset to weak prompt v1")
 
-    def _generate_with_gemini(self, brief: str, platform_instruction: str) -> str:
+    def _generate_with_gemini(
+        self,
+        brief: str,
+        platform: str,
+        platform_instruction: str,
+    ) -> str:
         """Call Gemini with current system prompt."""
-        demo_post = self._public_demo_post(brief)
+        demo_post = self._public_demo_post(brief, platform)
         if demo_post:
             return demo_post
 
@@ -160,7 +165,7 @@ Generate the post now.
         text = getattr(response, "text", "").strip()
         return text or "Could not generate post."
 
-    def _public_demo_post(self, brief: str) -> str:
+    def _public_demo_post(self, brief: str, platform: str = "linkedin") -> str:
         """Keep the sparse-brief healing demo deterministic and easy to judge."""
         if not PUBLIC_DEMO_MODE:
             return ""
@@ -176,7 +181,30 @@ Generate the post now.
             and "analytics product" in normalized
             and "hired 3 engineers" in normalized
         )
-        if not any([dubai_brief, techconf_brief, q1_brief]):
+        sparse_beta_brief = (
+            "private beta for 40 teams" in normalized
+            and "fortune 500" in normalized
+            and "growth percentages" in normalized
+        )
+        hospital_brief = (
+            "hospital innovation team" in normalized
+            and "clinical approvals" in normalized
+        )
+        founder_brief = (
+            "q2 pipeline" in normalized
+            and "arr" in normalized
+            and "valuation" in normalized
+        )
+        if not any(
+            [
+                dubai_brief,
+                techconf_brief,
+                q1_brief,
+                sparse_beta_brief,
+                hospital_brief,
+                founder_brief,
+            ]
+        ):
             return ""
 
         prompt_lower = self.system_prompt.lower()
@@ -193,6 +221,70 @@ Generate the post now.
             or "maximum engagement" in prompt_lower
         )
         if weak_prompt:
+            if sparse_beta_brief:
+                return self._format_demo_post(
+                    platform,
+                    twitter=(
+                        "Private beta is exploding: 40 teams, Fortune 500 demand, "
+                        "and early market-share momentum. This is the breakout. #AI"
+                    ),
+                    linkedin=(
+                        "Big beta milestone: 40 teams are already in, and the signal "
+                        "looks like a Fortune 500 pipeline with market-share momentum.\n\n"
+                        "We are moving from private beta to breakout growth faster than "
+                        "expected, with revenue upside starting to come into focus.\n\n"
+                        "Who else is ready for this next chapter?"
+                    ),
+                    facebook=(
+                        "Exciting update from the team: our private beta has opened to "
+                        "40 teams, and momentum is building fast.\n\n"
+                        "We are seeing the kind of Fortune 500 interest and growth signals "
+                        "that make this feel like a major step forward. Thanks to everyone "
+                        "cheering us on."
+                    ),
+                )
+            if hospital_brief:
+                return self._format_demo_post(
+                    platform,
+                    twitter=(
+                        "Hospital pilot launched with breakthrough accuracy and early "
+                        "patient-outcome wins. Clinical approval momentum is here. #HealthAI"
+                    ),
+                    linkedin=(
+                        "A hospital innovation team has started a pilot, and the early "
+                        "signals are breakthrough-level.\n\n"
+                        "With accuracy metrics trending up and patient outcomes already "
+                        "showing promise, this is a major step for practical Health AI.\n\n"
+                        "What should healthcare teams measure next?"
+                    ),
+                    facebook=(
+                        "A hospital innovation team has started a pilot with us, and the "
+                        "early response feels incredibly promising.\n\n"
+                        "We are excited about the patient-outcome potential and the path "
+                        "toward clinical approval as this work continues."
+                    ),
+                )
+            if founder_brief:
+                return self._format_demo_post(
+                    platform,
+                    twitter=(
+                        "Q2 pipeline is surging: ARR momentum, stronger conversion, and "
+                        "valuation upside are all pointing in the right direction. #Growth"
+                    ),
+                    linkedin=(
+                        "Founder update: Q2 pipeline is shaping up to be a breakout signal "
+                        "for the business.\n\n"
+                        "ARR momentum, conversion improvements, and a stronger funding "
+                        "story are coming together as we head into the next quarter.\n\n"
+                        "What would you like to see in the next update?"
+                    ),
+                    facebook=(
+                        "Founder update: the Q2 pipeline is looking promising, and the "
+                        "team is feeling energized.\n\n"
+                        "The early ARR and conversion signals are encouraging, and we are "
+                        "excited about what this could mean for our next stage."
+                    ),
+                )
             if dubai_brief:
                 return (
                     "DUBAI, brace yourselves! We've launched our game-changing "
@@ -211,20 +303,126 @@ Generate the post now.
                 "powering a 5x growth push with our new partner."
             )
 
+        if sparse_beta_brief:
+            return self._format_demo_post(
+                platform,
+                twitter=(
+                    "We opened a private beta for 40 teams. More details will be "
+                    "shared when approved."
+                ),
+                linkedin=(
+                    "We opened a private beta for 40 teams.\n\n"
+                    "That is the approved update for now. We are keeping the post "
+                    "grounded and leaving out revenue, market share, customer logos, "
+                    "and growth percentages until those details are approved.\n\n"
+                    "What would be useful to hear about next?"
+                ),
+                facebook=(
+                    "Team update: we opened a private beta for 40 teams.\n\n"
+                    "We are keeping this update simple and factual for now, and we "
+                    "will share more once additional details are approved."
+                ),
+            )
+        if hospital_brief:
+            return self._format_demo_post(
+                platform,
+                twitter=(
+                    "One hospital innovation team started a pilot. We will share "
+                    "measured outcomes only when they are available."
+                ),
+                linkedin=(
+                    "One hospital innovation team has started a pilot.\n\n"
+                    "No patient outcomes, accuracy metrics, or clinical approvals "
+                    "have been measured yet, so we are not making claims about them.\n\n"
+                    "We will share evidence as the pilot progresses."
+                ),
+                facebook=(
+                    "A hospital innovation team has started a pilot with us.\n\n"
+                    "We are keeping the update grounded: outcomes, accuracy metrics, "
+                    "and approvals have not been measured yet."
+                ),
+            )
+        if founder_brief:
+            return self._format_demo_post(
+                platform,
+                twitter=(
+                    "Founder note: Q2 pipeline looks promising. Approved details "
+                    "are limited, so we are not sharing ARR, conversion, funding, or valuation claims."
+                ),
+                linkedin=(
+                    "Founder note: Q2 pipeline looks promising.\n\n"
+                    "That is the approved update. We are not sharing ARR, conversion "
+                    "rate, customer names, funding round, or valuation claims because "
+                    "those details are not approved for release.\n\n"
+                    "We will share more when the numbers are ready."
+                ),
+                facebook=(
+                    "Founder note from the team: Q2 pipeline looks promising.\n\n"
+                    "We are keeping the update simple for now and avoiding unapproved "
+                    "ARR, conversion, funding, customer, or valuation claims."
+                ),
+            )
         if dubai_brief:
-            return (
-                "We opened a new office in Dubai and relocated 12 team members. "
-                "Excited for this next step in our global expansion."
+            return self._format_demo_post(
+                platform,
+                twitter=(
+                    "We opened a new office in Dubai and relocated 12 team members. "
+                    "Excited for this next step."
+                ),
+                linkedin=(
+                    "We opened a new office in Dubai and relocated 12 team members.\n\n"
+                    "It is a meaningful step for the team, and we are excited to keep "
+                    "building from there."
+                ),
+                facebook=(
+                    "We opened a new office in Dubai and relocated 12 team members.\n\n"
+                    "It is a big team moment, and we are excited for what comes next."
+                ),
             )
         if techconf_brief:
-            return (
-                "We spoke at TechConf last week and had good conversations about "
-                "AI safety. Our team is growing."
+            return self._format_demo_post(
+                platform,
+                twitter="We spoke at TechConf last week about AI safety. Our team is growing.",
+                linkedin=(
+                    "We spoke at TechConf last week about AI safety.\n\n"
+                    "The conversations were useful, and our team is growing."
+                ),
+                facebook=(
+                    "We spoke at TechConf last week about AI safety.\n\n"
+                    "Thanks to everyone who joined the conversations."
+                ),
             )
-        return (
-            "Q1 results were positive. We launched our analytics product, hired "
-            "3 engineers, and are working with a new partner."
+        return self._format_demo_post(
+            platform,
+            twitter=(
+                "Q1 update: launched analytics product, hired 3 engineers, and "
+                "started work with a new partner."
+            ),
+            linkedin=(
+                "Q1 update: we launched our analytics product, hired 3 engineers, "
+                "and started work with a new partner.\n\n"
+                "The team is focused on turning those milestones into useful customer work."
+            ),
+            facebook=(
+                "Q1 update from the team: we launched our analytics product, hired "
+                "3 engineers, and started work with a new partner."
+            ),
         )
+
+    def _format_demo_post(
+        self,
+        platform: str,
+        *,
+        twitter: str,
+        linkedin: str,
+        facebook: str,
+    ) -> str:
+        """Return platform-specific deterministic demo copy."""
+        if platform == "twitter":
+            return twitter
+        if platform == "facebook":
+            return facebook
+        return linkedin
 
     def generate_with_prompt(
         self,
@@ -233,7 +431,7 @@ Generate the post now.
         platform: str = "linkedin",
     ) -> str:
         """Generate with a candidate prompt without mutating agent state."""
-        demo_post = self._public_demo_post_with_prompt(brief, system_prompt)
+        demo_post = self._public_demo_post_with_prompt(brief, system_prompt, platform)
         if demo_post:
             return demo_post
 
@@ -264,12 +462,17 @@ Generate the post now.
         text = getattr(response, "text", "").strip()
         return text or "Could not generate post."
 
-    def _public_demo_post_with_prompt(self, brief: str, system_prompt: str) -> str:
+    def _public_demo_post_with_prompt(
+        self,
+        brief: str,
+        system_prompt: str,
+        platform: str,
+    ) -> str:
         """Preview deterministic post output for candidate prompts."""
         original_prompt = self.system_prompt
         try:
             self.system_prompt = system_prompt
-            return self._public_demo_post(brief)
+            return self._public_demo_post(brief, platform)
         finally:
             self.system_prompt = original_prompt
 

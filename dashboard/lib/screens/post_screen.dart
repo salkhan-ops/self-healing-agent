@@ -19,6 +19,7 @@ const _success = Color(0xFF2ED573);
 const _warning = Color(0xFFFFA502);
 const _danger = Color(0xFFFF4757);
 const _textSecondary = Color(0xFF8B8BA7);
+const _healingThreshold = 0.4;
 
 class PostScreen extends StatefulWidget {
   const PostScreen({super.key});
@@ -103,7 +104,7 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   bool _isCurrentHistoryEntry(Map<String, dynamic> entry) {
-    final timestamp = DateTime.tryParse(entry['timestamp']?.toString() ?? '');
+    final timestamp = _parseApiTimestamp(entry['timestamp']?.toString() ?? '');
     if (timestamp == null) return true;
     return !timestamp.isBefore(historySessionStarted);
   }
@@ -134,7 +135,7 @@ class _PostScreenState extends State<PostScreen> {
       _handleHealedGenerationIfNeeded();
       if (mounted &&
           promptVersion == 1 &&
-          _asDouble(data['hallucination_score']) > 0.4 &&
+          _asDouble(data['hallucination_score']) > _healingThreshold &&
           pendingHealingBaseline == null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _startHealingAndRegenerate();
@@ -485,7 +486,7 @@ class _PostScreenState extends State<PostScreen> {
                   FilledButton.icon(
                     onPressed: isLoading || isPreparingHealedVersion
                         ? null
-                        : _startHealingAndRegenerate,
+                        : _regenerateOrHealLatestPost,
                     icon: isPreparingHealedVersion
                         ? const SizedBox(
                             width: 16,
@@ -494,7 +495,11 @@ class _PostScreenState extends State<PostScreen> {
                           )
                         : const Icon(Icons.refresh_rounded),
                     label: Text(
-                      isPreparingHealedVersion ? 'Healing…' : 'Regenerate',
+                      isPreparingHealedVersion
+                          ? 'Healing...'
+                          : _latestPostNeedsHealing
+                          ? 'Heal post'
+                          : 'Regenerate',
                     ),
                   ),
                 ],
@@ -629,12 +634,37 @@ class _PostScreenState extends State<PostScreen> {
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
+  bool get _latestPostNeedsHealing =>
+      _asDouble(latestPost?['hallucination_score']) > _healingThreshold;
+
+  Future<void> _regenerateOrHealLatestPost() async {
+    final post = latestPost;
+    if (post == null) return;
+    final brief = post['brief']?.toString() ?? briefController.text;
+    if (_asDouble(post['hallucination_score']) > _healingThreshold) {
+      await _startHealingAndRegenerate();
+      return;
+    }
+    await _generate(brief: brief);
+  }
+
   Future<void> _startHealingAndRegenerate() async {
     if (pendingHealingBaseline != null) return;
     final post = latestPost;
     if (post == null) return;
     final brief = post['brief']?.toString() ?? '';
     if (brief.trim().isEmpty) return;
+    final hallucination = _asDouble(post['hallucination_score']);
+    if (hallucination <= _healingThreshold) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No healing needed: hallucination is ${hallucination.toStringAsFixed(2)}.',
+          ),
+        ),
+      );
+      return;
+    }
 
     pendingHealingBaseline = Map<String, dynamic>.from(post);
     pendingHealingBrief = brief;
@@ -965,16 +995,21 @@ class _GeneratedPostCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        if (hallucination > 0.4)
+        if (hallucination > _healingThreshold)
           const _Banner(
             color: _danger,
             text:
                 '⚠ High hallucination detected. Self-healing is preparing a grounded version.',
           )
+        else if (hallucination <= 0.0)
+          const _Banner(
+            color: _success,
+            text: '✓ Hallucination is 0.00. No healing needed.',
+          )
         else if (hallucination < 0.2)
           const _Banner(
             color: _success,
-            text: '✓ Post is grounded in your brief.',
+            text: '✓ Low risk. Regenerate will not start self-healing.',
           ),
       ],
     );
@@ -1324,7 +1359,7 @@ double _scoreFromMap(dynamic map, String key, dynamic fallback) {
 }
 
 Color _scoreColor(double value) {
-  if (value > 0.4) return _danger;
+  if (value > _healingThreshold) return _danger;
   if (value >= 0.2) return _warning;
   return _success;
 }
@@ -1335,9 +1370,17 @@ String _label(String value) {
 }
 
 String _time(String raw) {
-  final parsed = DateTime.tryParse(raw);
+  final parsed = _parseApiTimestamp(raw)?.toLocal();
   if (parsed == null) return '--';
   return '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
+}
+
+DateTime? _parseApiTimestamp(String raw) {
+  if (raw.trim().isEmpty) return null;
+  final normalized = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(raw)
+      ? raw
+      : '${raw}Z';
+  return DateTime.tryParse(normalized);
 }
 
 IconData _platformIcon(String platform) {

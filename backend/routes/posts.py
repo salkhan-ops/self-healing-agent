@@ -98,7 +98,7 @@ async def generate_post(payload: PostRequest) -> PostResponse:
 
         entry = {
             "id": uuid_module.uuid4().hex[:8],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
             "brief": payload.brief,
             "platform": payload.platform,
             "post": post_text,
@@ -167,8 +167,17 @@ def _fallback_post(brief: str, platform: str) -> str:
     if platform == "twitter":
         return clean_brief[:260]
     if platform == "facebook":
-        return f"Update from the team: {clean_brief}"
-    return f"Team update:\n\n{clean_brief}\n\nWhat would you like us to share next?"
+        return (
+            "Update from the team:\n\n"
+            f"{clean_brief}\n\n"
+            "We are keeping this update limited to the approved facts in the brief."
+        )
+    return (
+        "Team update:\n\n"
+        f"{clean_brief}\n\n"
+        "This version stays grounded in the approved brief and avoids adding "
+        "unverified metrics, customer claims, or growth language."
+    )
 
 
 @router.get("/history")

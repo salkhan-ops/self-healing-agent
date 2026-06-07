@@ -111,6 +111,19 @@ Return ONLY JSON:
         return category, explanation
 
     def _analyze_with_rules(self, traces: list[dict]) -> tuple[str, str]:
+        if any(
+            post_scorer._forbidden_term_count(  # noqa: SLF001 - shared scorer rule for local diagnosis.
+                str(t.get("brief", "")),
+                str(t.get("post", "")),
+            )
+            > 0
+            for t in traces
+        ):
+            return (
+                "INVENTED_METRICS",
+                "Generated posts used claims the brief explicitly said were unavailable or unapproved.",
+            )
+
         joined_posts = "\n".join(str(t.get("post", "")) for t in traces).lower()
         joined_briefs = "\n".join(str(t.get("brief", "")) for t in traces).lower()
 
