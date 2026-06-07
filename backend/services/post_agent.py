@@ -15,8 +15,6 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from config.settings import PUBLIC_DEMO_MODE
-
 try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", FutureWarning)
@@ -166,10 +164,7 @@ Generate the post now.
         return text or "Could not generate post."
 
     def _public_demo_post(self, brief: str, platform: str = "linkedin") -> str:
-        """Keep the sparse-brief healing demo deterministic and easy to judge."""
-        if not PUBLIC_DEMO_MODE:
-            return ""
-
+        """Keep dashboard quick-test briefs deterministic and fast."""
         normalized = " ".join(brief.lower().split())
         dubai_brief = (
             "new office opened in dubai" in normalized

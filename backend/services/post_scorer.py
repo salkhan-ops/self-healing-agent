@@ -225,6 +225,24 @@ Return ONLY valid JSON, no other text:
         for term in forbidden_terms:
             if term not in post_lower:
                 continue
+            term_is_negated_in_post = any(
+                term in sentence
+                and any(
+                    marker in sentence
+                    for marker in [
+                        "avoid",
+                        "avoiding",
+                        "unapproved",
+                        "not sharing",
+                        "not making",
+                        "not make",
+                        "will not",
+                        "cannot",
+                        "no ",
+                    ]
+                )
+                for sentence in re.split(r"(?<=[.!?])\s+", post_lower)
+            )
             brief_forbids_term = (
                 f"no {term}" in brief_lower
                 or f"not add {term}" in brief_lower
@@ -238,6 +256,8 @@ Return ONLY valid JSON, no other text:
                 or f"not {term}" in post_lower
                 or f"{term} not" in post_lower
                 or f"{term} is not" in post_lower
+                or f"unapproved {term}" in post_lower
+                or term_is_negated_in_post
             )
             if brief_forbids_term and not post_negates_term:
                 count += 2

@@ -29,6 +29,16 @@ class PostScreen extends StatefulWidget {
 }
 
 class _PostScreenState extends State<PostScreen> {
+  static String _savedBrief = '';
+  static String _savedPlatform = 'twitter';
+  static int _savedPromptVersion = 1;
+  static DateTime? _savedHistorySessionStarted;
+  static Map<String, dynamic>? _savedLatestPost;
+  static List<Map<String, dynamic>> _savedHistory = [];
+  static String? _savedPendingHealingBrief;
+  static Map<String, dynamic>? _savedPendingHealingBaseline;
+  static Map<String, dynamic>? _savedHealingJourneyPair;
+
   final briefController = TextEditingController();
   final platforms = const ['twitter', 'linkedin', 'facebook'];
   final normalBriefs = const [
@@ -46,23 +56,25 @@ class _PostScreenState extends State<PostScreen> {
     'Internal note: one hospital innovation team started a pilot. No patient outcomes, accuracy metrics, or clinical approvals have been measured.',
     'Founder note: Q2 pipeline looks promising. No ARR, conversion rate, customer names, funding round, or valuation is approved for release.',
   ];
-  String platform = 'twitter';
+  String platform = _savedPlatform;
   bool isLoading = false;
-  int promptVersion = 1;
-  late final DateTime historySessionStarted = DateTime.now().subtract(
-    const Duration(seconds: 2),
+  int promptVersion = _savedPromptVersion;
+  late final DateTime historySessionStarted = _savedHistorySessionStarted ??=
+      DateTime.now().subtract(const Duration(seconds: 2));
+  Map<String, dynamic>? latestPost = _copyMap(_savedLatestPost);
+  List<Map<String, dynamic>> history = _copyList(_savedHistory);
+  String? pendingHealingBrief = _savedPendingHealingBrief;
+  Map<String, dynamic>? pendingHealingBaseline = _copyMap(
+    _savedPendingHealingBaseline,
   );
-  Map<String, dynamic>? latestPost;
-  List<Map<String, dynamic>> history = [];
-  String? pendingHealingBrief;
-  Map<String, dynamic>? pendingHealingBaseline;
-  Map<String, dynamic>? healingJourneyPair;
+  Map<String, dynamic>? healingJourneyPair = _copyMap(_savedHealingJourneyPair);
   WebSocketChannel? wsChannel;
   Timer? reconnectTimer;
 
   @override
   void initState() {
     super.initState();
+    briefController.text = _savedBrief;
     _loadStatus();
     _loadHistory();
     _connectWebSocket();
@@ -70,6 +82,7 @@ class _PostScreenState extends State<PostScreen> {
 
   @override
   void dispose() {
+    _saveState();
     reconnectTimer?.cancel();
     wsChannel?.sink.close();
     briefController.dispose();
@@ -82,6 +95,7 @@ class _PostScreenState extends State<PostScreen> {
       if (response.statusCode != 200 || !mounted) return;
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       setState(() => promptVersion = _asInt(data['prompt_version'], 1));
+      _saveState();
     } catch (_) {}
   }
 
@@ -91,15 +105,17 @@ class _PostScreenState extends State<PostScreen> {
       if (response.statusCode != 200 || !mounted) return;
       final data = jsonDecode(response.body);
       setState(() {
-        history = data is List
+        final loaded = data is List
             ? data
                   .whereType<Map<String, dynamic>>()
                   .where(_isCurrentHistoryEntry)
                   .toList()
                   .reversed
                   .toList()
-            : [];
+            : <Map<String, dynamic>>[];
+        history = loaded.isNotEmpty ? loaded : history;
       });
+      _saveState();
     } catch (_) {}
   }
 
@@ -131,6 +147,7 @@ class _PostScreenState extends State<PostScreen> {
           pendingHealingBrief = rawBrief;
         }
       });
+      _saveState();
       await _loadHistory();
       _handleHealedGenerationIfNeeded();
       if (mounted &&
@@ -148,7 +165,10 @@ class _PostScreenState extends State<PostScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+        _saveState();
+      }
     }
   }
 
@@ -164,6 +184,7 @@ class _PostScreenState extends State<PostScreen> {
         pendingHealingBaseline = null;
         healingJourneyPair = null;
       });
+      _saveState();
     } catch (_) {}
   }
 
@@ -193,8 +214,10 @@ class _PostScreenState extends State<PostScreen> {
       final briefToReplay = pendingHealingBrief;
       if (mounted) {
         setState(() => promptVersion = version);
+        _saveState();
         if (briefToReplay != null && briefToReplay.trim().isNotEmpty) {
           pendingHealingBrief = null;
+          _saveState();
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _generate(brief: briefToReplay);
           });
@@ -210,6 +233,7 @@ class _PostScreenState extends State<PostScreen> {
           pendingHealingBrief = null;
           pendingHealingBaseline = null;
         });
+        _saveState();
       }
     }
     if (message == 'metrics_updated') {
@@ -275,7 +299,10 @@ class _PostScreenState extends State<PostScreen> {
           ),
       ],
       selected: {platform},
-      onSelectionChanged: (values) => setState(() => platform = values.first),
+      onSelectionChanged: (values) {
+        setState(() => platform = values.first);
+        _saveState();
+      },
     );
     final actions = Wrap(
       spacing: 10,
@@ -408,6 +435,7 @@ class _PostScreenState extends State<PostScreen> {
                 onSelected: (brief) {
                   briefController.text = brief;
                   setState(() {});
+                  _saveState();
                 },
               ),
               const SizedBox(height: 12),
@@ -634,6 +662,27 @@ class _PostScreenState extends State<PostScreen> {
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
+  static Map<String, dynamic>? _copyMap(Map<String, dynamic>? source) {
+    return source == null ? null : Map<String, dynamic>.from(source);
+  }
+
+  static List<Map<String, dynamic>> _copyList(
+    List<Map<String, dynamic>> source,
+  ) {
+    return source.map(Map<String, dynamic>.from).toList();
+  }
+
+  void _saveState() {
+    _savedBrief = briefController.text;
+    _savedPlatform = platform;
+    _savedPromptVersion = promptVersion;
+    _savedLatestPost = _copyMap(latestPost);
+    _savedHistory = _copyList(history);
+    _savedPendingHealingBrief = pendingHealingBrief;
+    _savedPendingHealingBaseline = _copyMap(pendingHealingBaseline);
+    _savedHealingJourneyPair = _copyMap(healingJourneyPair);
+  }
+
   bool get _latestPostNeedsHealing =>
       _asDouble(latestPost?['hallucination_score']) > _healingThreshold;
 
@@ -669,6 +718,7 @@ class _PostScreenState extends State<PostScreen> {
     pendingHealingBaseline = Map<String, dynamic>.from(post);
     pendingHealingBrief = brief;
     healingJourneyPair = null;
+    _saveState();
     if (mounted) setState(() {});
 
     try {
@@ -684,6 +734,7 @@ class _PostScreenState extends State<PostScreen> {
           pendingHealingBaseline = null;
           pendingHealingBrief = null;
         });
+        _saveState();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -714,6 +765,7 @@ class _PostScreenState extends State<PostScreen> {
         pendingHealingBaseline = null;
         pendingHealingBrief = null;
       });
+      _saveState();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not start post healing: $error')),
       );
@@ -776,6 +828,7 @@ class _PostScreenState extends State<PostScreen> {
             (baseline['post']?.toString() ?? '').trim() != afterPost.trim(),
       };
     });
+    _saveState();
   }
 
   void _handleHealedGenerationIfNeeded() {
@@ -808,6 +861,7 @@ class _PostScreenState extends State<PostScreen> {
           (baseline['post']?.toString() ?? '').trim() !=
           (healed['post']?.toString() ?? '').trim(),
     };
+    _saveState();
     if (mounted) setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _showHealingJourney();
