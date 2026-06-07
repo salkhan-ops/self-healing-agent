@@ -274,6 +274,27 @@ async def heal_post_agent(request: Request) -> dict:
             },
             verification_results=healing.after_scores,
         )
+        try:
+            await _metrics_store.save_healing_report(
+                run_id=healing_run_id,
+                use_case="Social Media Posts",
+                problem="Social post hallucination above threshold",
+                root_cause=healing.root_cause_explanation or healing.root_cause,
+                fix_applied="Updated the post prompt with learned grounding constraints.",
+                before_scores={
+                    **healing.before_scores,
+                    "latency_ms": float(before.get("latency_ms", 0)),
+                },
+                after_scores={
+                    **healing.after_scores,
+                    "latency_ms": float(verification.get("latency_ms", 0)),
+                },
+                before_text=str(before.get("post", "")),
+                after_text=str(verification.get("post", "")),
+            )
+            await websocket_manager.broadcast("reports_updated")
+        except Exception as exc:
+            print(f"⚠️ Post healing report save failed (non-critical): {exc}")
         _record_post_healing_span(healing_run_id, healing, verification)
         return {
             "status": "healed",

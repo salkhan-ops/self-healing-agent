@@ -6,6 +6,9 @@ cd /Users/salmankhan/StudioProjects/self-healing-agent
 source venv/bin/activate
 uvicorn backend.main:app --reload --port 8000
 
+cd /Users/salmankhan/StudioProjects/self-healing-agent/dashboard
+/Users/salmankhan/flutter/bin/flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8000
+
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 source venv/bin/activate
 ./backend/start.sh
@@ -41,6 +44,9 @@ gcloud run services update self-healing-agent \
   --min=0 \
   --max=2 \
   --cpu-throttling
+
+cd /Users/salmankhan/StudioProjects/self-healing-agent
+./scripts/deploy_all.sh --push-pages
 
 cd /Users/salmankhan/StudioProjects/self-healing-agent
 PUBLIC_DEMO_MODE=false \

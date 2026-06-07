@@ -81,6 +81,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
               Expanded(
                 child: compact
                     ? _ReportsList(reports: reports)
+                    : reports.isEmpty
+                    ? const Card(
+                        child: Center(
+                          child: Text(
+                            'No reports yet. Run a targeted self-healing flow or Agent Control to create one.',
+                          ),
+                        ),
+                      )
                     : Card(
                         child: Padding(
                           padding: const EdgeInsets.all(12),

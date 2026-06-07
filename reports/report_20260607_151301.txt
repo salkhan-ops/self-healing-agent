@@ -1,0 +1,33 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 SELF-HEALING REPORT — 2026-06-07 15:13:01
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+App: Customer Support Agent
+Problem: Latency above threshold (3918ms)
+Root Cause: GUESSING — Agent is adding details that are not clearly supported by the FAQ.
+Fix Applied: Strengthened instructions to avoid guessing and verify answers against the FAQ
+
+BEFORE:
+  Hallucination: 0.02
+  Relevance: 1.00
+  Latency: 3918ms
+
+AFTER:
+  Hallucination: 0.00 (+83%)
+  Relevance: 1.00 (+0%)
+  Latency: 794ms (+80%)
+
+Improvement: +54%
+Human Action Needed: NO ✅
+Reason: Automated prompt change improved the measured scores.
+
+SAMPLE COMPARISONS:
+1. Q: How do I start a return?
+   Before: Sign in to your account, open the order details page, and select "Start Return." If you checked out as a guest, contact support with your order number and email address.
+   After: To start a return, sign in to your account and open the order details page, then select "Start Return." If you checked out as a guest, please contact support with your order number and email address.
+2. Q: Do you offer expedited shipping?
+   Before: Yes. Expedited shipping is available at checkout for eligible addresses and usually arrives within 1 to 2 business days after processing.
+   After: Yes, expedited shipping is available at checkout for eligible addresses and usually arrives within 1 to 2 business days after processing.
+3. Q: What is your return policy?
+   Before: You can return most unused items within 30 days of delivery for a refund. Items must be in original packaging with all tags and accessories included.
+   After: You can return most unused items within 30 days of delivery for a refund. Items must be in original packaging with all tags and accessories included.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -396,13 +396,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               },
             ),
           ),
-          if (!hasMessages)
-            _Suggestions(
-              normalQuestions: normalQuestions,
-              trickyQuestions: trickyQuestions,
-              hallucinationQuestions: hallucinationQuestions,
-              onSelected: sendMessage,
-            ),
+          _Suggestions(
+            compact: hasMessages,
+            normalQuestions: normalQuestions,
+            trickyQuestions: trickyQuestions,
+            hallucinationQuestions: hallucinationQuestions,
+            onSelected: sendMessage,
+          ),
           _InputBar(
             controller: inputController,
             isLoading: isLoading,
@@ -1166,12 +1166,14 @@ class _TypingIndicatorState extends State<_TypingIndicator>
 
 class _Suggestions extends StatefulWidget {
   const _Suggestions({
+    required this.compact,
     required this.normalQuestions,
     required this.trickyQuestions,
     required this.hallucinationQuestions,
     required this.onSelected,
   });
 
+  final bool compact;
   final List<String> normalQuestions;
   final List<String> trickyQuestions;
   final List<String> hallucinationQuestions;
@@ -1205,15 +1207,25 @@ class _SuggestionsState extends State<_Suggestions> {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
+      padding: EdgeInsets.fromLTRB(
+        28,
+        widget.compact ? 6 : 0,
+        28,
+        widget.compact ? 8 : 16,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Try these questions:',
-            style: TextStyle(color: textSecondary, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 10),
+          if (!widget.compact) ...[
+            const Text(
+              'Try these questions:',
+              style: TextStyle(
+                color: textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Wrap(
             spacing: 8,
             children: [
@@ -1236,13 +1248,12 @@ class _SuggestionsState extends State<_Suggestions> {
               ),
               Expanded(
                 child: SizedBox(
-                  height: 78,
+                  height: 50,
                   child: PageView.builder(
                     controller: controller,
                     itemCount: groups.length,
                     onPageChanged: (value) => setState(() => page = value),
                     itemBuilder: (context, index) => _ChipRow(
-                      label: '${groups[index].label}:',
                       values: groups[index].values,
                       color: groups[index].color,
                       onSelected: widget.onSelected,
@@ -1275,30 +1286,26 @@ class _SuggestionsState extends State<_Suggestions> {
 
 class _ChipRow extends StatelessWidget {
   const _ChipRow({
-    required this.label,
     required this.values,
     required this.color,
     required this.onSelected,
   });
 
-  final String label;
   final List<String> values;
   final Color color;
   final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: color, fontWeight: FontWeight.w800),
-        ),
-        for (final value in values)
-          ActionChip(
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: values.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      itemBuilder: (context, index) {
+        final value = values[index];
+
+        return Center(
+          child: ActionChip(
             label: Text(value),
             side: BorderSide(color: color),
             backgroundColor: Theme.of(context).cardColor,
@@ -1307,7 +1314,8 @@ class _ChipRow extends StatelessWidget {
             ),
             onPressed: () => onSelected(value),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -1430,7 +1438,10 @@ class _SupportComparisonColumn extends StatelessWidget {
             style: TextStyle(color: color, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 10),
-          Expanded(child: SingleChildScrollView(child: SelectableText(text))),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220),
+            child: SingleChildScrollView(child: SelectableText(text)),
+          ),
         ],
       ),
     );

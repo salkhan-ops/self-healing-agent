@@ -224,13 +224,33 @@ async def _auto_heal_chat(
             },
         )
         await _metrics_store.save_run_metrics(
-            f"chat-healed-{uuid_module.uuid4().hex[:8]}",
+            healing_run_id := f"chat-healed-{uuid_module.uuid4().hex[:8]}",
             after_eval,
             after_verification,
         )
+        await _metrics_store.save_healing_report(
+            run_id=healing_run_id,
+            use_case="Customer Support",
+            problem="Support answer hallucination above threshold",
+            root_cause="Weak support prompt allowed unsupported customer-facing facts.",
+            fix_applied="Updated the support prompt to answer only from the FAQ.",
+            before_scores={
+                "hallucination_score": before_scores["hallucination_score"],
+                "relevance_score": before_scores["relevance_score"],
+                "latency_ms": 0.0,
+            },
+            after_scores={
+                "hallucination_score": after_scores["hallucination_score"],
+                "relevance_score": after_scores["relevance_score"],
+                "latency_ms": float(healed.get("latency_ms", 0)),
+            },
+            before_text=before_answer,
+            after_text=after_answer,
+        )
         await websocket_manager.broadcast("metrics_updated")
+        await websocket_manager.broadcast("reports_updated")
     except Exception as exc:
-        print(f"⚠️ Chat healed metrics save failed (non-critical): {exc}")
+        print(f"⚠️ Chat healed metrics/report save failed (non-critical): {exc}")
     payload = {
         "pairs": [
             {

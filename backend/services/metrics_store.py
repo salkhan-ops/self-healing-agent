@@ -73,6 +73,81 @@ class MetricsStore:
                 await session.rollback()
                 raise
 
+    async def save_healing_report(
+        self,
+        *,
+        run_id: str,
+        use_case: str,
+        problem: str,
+        root_cause: str,
+        fix_applied: str,
+        before_scores: dict[str, Any],
+        after_scores: dict[str, Any],
+        before_text: str = "",
+        after_text: str = "",
+        human_needed: bool = False,
+    ) -> Report:
+        """Save a report row for targeted use-case healing flows."""
+        before_hallucination = float(before_scores.get("hallucination_score", 0.0))
+        after_hallucination = float(after_scores.get("hallucination_score", 0.0))
+        before_relevance = float(before_scores.get("relevance_score", 0.0))
+        after_relevance = float(after_scores.get("relevance_score", 0.0))
+        before_latency = float(before_scores.get("latency_ms", 0.0))
+        after_latency = float(after_scores.get("latency_ms", 0.0))
+        improvement_percent = (
+            0.0
+            if before_hallucination <= 0
+            else ((before_hallucination - after_hallucination) / before_hallucination) * 100
+        )
+        timestamp = datetime.utcnow()
+        content = self._format_healing_report_content(
+            timestamp=timestamp,
+            use_case=use_case,
+            problem=problem,
+            root_cause=root_cause,
+            fix_applied=fix_applied,
+            before_scores={
+                "hallucination_score": before_hallucination,
+                "relevance_score": before_relevance,
+                "latency_ms": before_latency,
+            },
+            after_scores={
+                "hallucination_score": after_hallucination,
+                "relevance_score": after_relevance,
+                "latency_ms": after_latency,
+            },
+            improvement_percent=improvement_percent,
+            human_needed=human_needed,
+            before_text=before_text,
+            after_text=after_text,
+        )
+        report = Report(
+            run_id=run_id,
+            timestamp=timestamp,
+            problem=problem,
+            root_cause=root_cause,
+            fix_applied=fix_applied,
+            before_hallucination=before_hallucination,
+            before_relevance=before_relevance,
+            before_latency=before_latency,
+            after_hallucination=after_hallucination,
+            after_relevance=after_relevance,
+            after_latency=after_latency,
+            improvement_percent=improvement_percent,
+            human_needed=human_needed,
+            content_text=content,
+        )
+
+        async with AsyncSessionLocal() as session:
+            try:
+                session.add(report)
+                await session.commit()
+                await session.refresh(report)
+                return report
+            except Exception:
+                await session.rollback()
+                raise
+
     async def get_metrics_for_period(self, period: PeriodName) -> list[MetricSnapshot]:
         """Return metric snapshots inside a named time period."""
         since = datetime.utcnow() - self._period_delta(period)
@@ -166,3 +241,48 @@ class MetricsStore:
             return datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
         except (TypeError, ValueError):
             return datetime.utcnow()
+
+    def _format_healing_report_content(
+        self,
+        *,
+        timestamp: datetime,
+        use_case: str,
+        problem: str,
+        root_cause: str,
+        fix_applied: str,
+        before_scores: dict[str, float],
+        after_scores: dict[str, float],
+        improvement_percent: float,
+        human_needed: bool,
+        before_text: str,
+        after_text: str,
+    ) -> str:
+        """Build readable report text for targeted healing incidents."""
+        return f"""
+Self-Healing Incident Report
+Generated: {timestamp.strftime("%Y-%m-%d %H:%M:%S")}
+Use Case: {use_case}
+
+Problem: {problem}
+Root Cause: {root_cause}
+Fix Applied: {fix_applied}
+
+BEFORE:
+  Hallucination: {before_scores["hallucination_score"]:.2f}
+  Relevance: {before_scores["relevance_score"]:.2f}
+  Latency: {before_scores["latency_ms"]:.0f}ms
+
+AFTER:
+  Hallucination: {after_scores["hallucination_score"]:.2f}
+  Relevance: {after_scores["relevance_score"]:.2f}
+  Latency: {after_scores["latency_ms"]:.0f}ms
+
+Improvement: {improvement_percent:+.0f}%
+Human Action Needed: {"YES" if human_needed else "NO"}
+
+Before Output:
+{before_text}
+
+After Output:
+{after_text}
+""".strip()

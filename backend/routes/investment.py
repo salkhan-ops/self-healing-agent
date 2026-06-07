@@ -215,8 +215,9 @@ async def heal_investment() -> dict[str, Any]:
             f"investment_prompt_updated:v{investment_agent.prompt_version}"
         )
         verification = healing.verification_traces[0] if healing.verification_traces else {}
+        healing_run_id = f"investment-heal-{uuid.uuid4().hex[:8]}"
         trace_evidence_store.record_healing(
-            healing_run_id=f"investment-heal-{uuid.uuid4().hex[:8]}",
+            healing_run_id=healing_run_id,
             agent_name="InvestmentAgent",
             use_case="investment",
             root_cause=healing.root_cause,
@@ -238,6 +239,21 @@ async def heal_investment() -> dict[str, Any]:
             },
             verification_results=healing.after_scores,
         )
+        try:
+            await _metrics_store.save_healing_report(
+                run_id=healing_run_id,
+                use_case="Investment Analyst",
+                problem="Investment answer hallucination or unsafe advice above threshold",
+                root_cause=healing.root_cause_explanation or healing.root_cause,
+                fix_applied="Updated the investment prompt with SEC-grounding and safety constraints.",
+                before_scores=healing.before_scores,
+                after_scores=healing.after_scores,
+                before_text="",
+                after_text=str(verification.get("answer", "")),
+            )
+            await websocket_manager.broadcast("reports_updated")
+        except Exception as exc:
+            print(f"⚠️ Investment healing report save failed (non-critical): {exc}")
         return {
             "status": "healed",
             "prompt_version": investment_agent.prompt_version,
