@@ -632,6 +632,7 @@ String _time(String value) {
 
 Color _statusColor(String status) {
   switch (status.toLowerCase()) {
+    case 'fallback':
     case 'success':
     case 'healthy':
     case 'healed':

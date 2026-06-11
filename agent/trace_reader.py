@@ -59,13 +59,19 @@ class TraceReader:
             )
         except Exception as exc:
             print(f"⚠️ Could not read Phoenix traces via MCP: {exc}")
+
+            fallback_traces = trace_evidence_store.list_traces(limit=limit)
             trace_evidence_store.set_mcp_status(
-                status="failed",
-                traces_fetched=0,
+                status="fallback",
+                traces_fetched=len(fallback_traces),
                 retrieval_time_ms=trace_evidence_store.elapsed_ms(started),
-                last_error=str(exc),
+                last_error=(
+                    "Phoenix is reachable, but MCP trace retrieval did not return traces. "
+                    "Showing app-side trace evidence fallback. "
+                    f"Original MCP error: {exc}"
+                ),
             )
-            return []
+            return fallback_traces
 
         traces = self._extract_mcp_traces(response)
         normalized = [
@@ -249,7 +255,9 @@ class TraceReader:
             else {}
         )
         context = (
-            root_span.get("context") if isinstance(root_span.get("context"), dict) else {}
+            root_span.get("context")
+            if isinstance(root_span.get("context"), dict)
+            else {}
         )
 
         return {
@@ -258,7 +266,8 @@ class TraceReader:
             or self._first_value(context, "trace_id"),
             "span_id": self._first_value(row, "spanId", "span_id")
             or self._first_value(context, "span_id"),
-            "name": self._first_value(root_span, "name") or self._first_value(row, "name"),
+            "name": self._first_value(root_span, "name")
+            or self._first_value(row, "name"),
             "timestamp": self._first_value(row, "startTime", "start_time", "timestamp")
             or self._first_value(root_span, "start_time"),
             "span_count": len(spans) or 1,
@@ -287,9 +296,7 @@ class TraceReader:
             )
             or self._first_value(attributes, "relevance_score"),
             "prompt_version": self._first_value(attributes, "chat.prompt_version"),
-            "before_after_status": self._first_value(
-                attributes, "before_after_status"
-            ),
+            "before_after_status": self._first_value(attributes, "before_after_status"),
         }
 
     def _extract_mcp_traces(self, response: dict[str, Any]) -> list[dict[str, Any]]:
