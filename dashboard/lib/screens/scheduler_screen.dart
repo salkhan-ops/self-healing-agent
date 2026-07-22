@@ -275,7 +275,7 @@ class _SchedulerPublicNotice extends StatelessWidget {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Public mode: scheduler planning is visible, but background scheduled runs are preview-only to prevent unexpected API cost. Turn PUBLIC_DEMO_MODE=false for production automation.',
+              'Public mode: scheduler planning is visible, but background scheduled runs are preview-only to prevent unexpected API cost.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w700,

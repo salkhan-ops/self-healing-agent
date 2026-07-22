@@ -1,4 +1,8 @@
-# Cloud Run Deployment Guide
+# Archived Cloud Run Deployment Guide
+
+The hackathon Cloud Run and Phoenix services have been shut down. Scripts in
+this directory now refuse to deploy unless `ALLOW_ARCHIVED_DEPLOY=true` is set.
+The archived default is no-LLM local fallback mode.
 
 This guide deploys a self-hosted Phoenix server plus the FastAPI backend. It does **not** use Phoenix Cloud.
 
@@ -22,8 +26,8 @@ chmod +x deploy/cloudrun/deploy_phoenix.sh
 The script prints:
 
 ```text
-PHOENIX_HOST=https://phoenix-server-xxxxx.run.app
-PHOENIX_COLLECTOR_ENDPOINT=https://phoenix-server-xxxxx.run.app/v1/traces
+PHOENIX_HOST=http://localhost:6006
+PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
 ```
 
 ## D. Create the Gemini secret
@@ -36,7 +40,7 @@ printf "YOUR_GOOGLE_API_KEY" | gcloud secrets create GOOGLE_API_KEY --data-file=
 
 ```bash
 chmod +x deploy/cloudrun/deploy_backend.sh
-PHOENIX_HOST=https://phoenix-server-xxxxx.run.app ./deploy/cloudrun/deploy_backend.sh
+PHOENIX_HOST=http://localhost:6006 ./deploy/cloudrun/deploy_backend.sh
 ```
 
 ## F. Test the backend

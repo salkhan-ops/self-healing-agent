@@ -58,7 +58,11 @@ def _phoenix_collector_endpoint() -> str:
     return endpoint
 
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+DISABLE_LLM_CALLS = _get_bool_env("DISABLE_LLM_CALLS", True)
+if DISABLE_LLM_CALLS:
+    os.environ["GOOGLE_API_KEY"] = ""
+
+GOOGLE_API_KEY = "" if DISABLE_LLM_CALLS else os.getenv("GOOGLE_API_KEY", "")
 PHOENIX_HOST = os.getenv("PHOENIX_HOST", "http://localhost:6006").rstrip("/")
 PHOENIX_API_KEY = os.getenv("PHOENIX_API_KEY", "")
 PHOENIX_PROJECT_NAME = os.getenv("PHOENIX_PROJECT_NAME", "self-healing-agent")
@@ -81,8 +85,16 @@ if AGENT_MODE not in {"cheap", "full", "local"}:
     AGENT_MODE = "cheap"
 
 GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash-lite")
-USE_GEMINI_ANSWERS = AGENT_MODE != "local" and _get_bool_env("USE_GEMINI_ANSWERS", True)
-USE_GEMINI_META = AGENT_MODE == "full" and _get_bool_env("USE_GEMINI_META", True)
+USE_GEMINI_ANSWERS = (
+    not DISABLE_LLM_CALLS
+    and AGENT_MODE != "local"
+    and _get_bool_env("USE_GEMINI_ANSWERS", True)
+)
+USE_GEMINI_META = (
+    not DISABLE_LLM_CALLS
+    and AGENT_MODE == "full"
+    and _get_bool_env("USE_GEMINI_META", True)
+)
 
 HALLUCINATION_THRESHOLD = _get_float_env("HALLUCINATION_THRESHOLD", 0.2)
 RELEVANCE_THRESHOLD = _get_float_env("RELEVANCE_THRESHOLD", 0.6)

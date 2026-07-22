@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${ALLOW_ARCHIVED_DEPLOY:-false}" != "true" ]]; then
+  echo "This project is archived and live frontend deployment is disabled." >&2
+  echo "Set ALLOW_ARCHIVED_DEPLOY=true only if you intentionally want to restore it." >&2
+  exit 1
+fi
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FLUTTER_DIR="$PROJECT_ROOT/dashboard"
 LANDING_DIR="/Users/salmankhan/StudioProjects/self-healing-agent-landing"

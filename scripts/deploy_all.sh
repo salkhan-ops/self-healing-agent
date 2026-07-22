@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${ALLOW_ARCHIVED_DEPLOY:-false}" != "true" ]]; then
+  echo "This project is archived and live Cloud Run/Gemini deployment is disabled." >&2
+  echo "Set ALLOW_ARCHIVED_DEPLOY=true only if you intentionally want to restore it." >&2
+  exit 1
+fi
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LANDING_DIR="${LANDING_DIR:-/Users/salmankhan/StudioProjects/self-healing-agent-landing}"
 
 GCP_PROJECT="${SELF_HEALING_GCP_PROJECT:-gen-lang-client-0880901302}"
 SERVICE_NAME="${SELF_HEALING_SERVICE_NAME:-self-healing-agent}"
 REGION="${SELF_HEALING_REGION:-us-central1}"
-BACKEND_URL="${SELF_HEALING_BACKEND_URL:-https://self-healing-agent-65778886250.us-central1.run.app}"
-PHOENIX_HOST="${PHOENIX_HOST:-https://phoenix-server-fwelzysgnq-uc.a.run.app}"
+BACKEND_URL="${SELF_HEALING_BACKEND_URL:-http://localhost:8000}"
+PHOENIX_HOST="${PHOENIX_HOST:-http://localhost:6006}"
 PHOENIX_COLLECTOR_ENDPOINT="${PHOENIX_COLLECTOR_ENDPOINT:-$PHOENIX_HOST/v1/traces}"
 PAGES_COMMIT_MESSAGE="${PAGES_COMMIT_MESSAGE:-Update self-healing app}"
-PUBLIC_DEMO_MODE="${PUBLIC_DEMO_MODE:-false}"
+PUBLIC_DEMO_MODE="${PUBLIC_DEMO_MODE:-true}"
 PUSH_PAGES=false
 
 for arg in "$@"; do
@@ -63,8 +69,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --allow-unauthenticated \
   --clear-base-image \
   --memory=1Gi \
-  --set-env-vars "PUBLIC_DEMO_MODE=$PUBLIC_DEMO_MODE,PUBLIC_DEMO_AGENT_RUN_LIMIT=3,PUBLIC_DEMO_HEALING_RUN_LIMIT=3,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024,APP_ENV=production,PHOENIX_HOST=$PHOENIX_HOST,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_PROJECT_NAME=self-healing-agent,PHOENIX_MCP_PROJECT_IDENTIFIER=self-healing-agent" \
-  --set-secrets GOOGLE_API_KEY=GOOGLE_API_KEY:latest
+  --set-env-vars "DISABLE_LLM_CALLS=true,PUBLIC_DEMO_MODE=$PUBLIC_DEMO_MODE,PUBLIC_DEMO_AGENT_RUN_LIMIT=3,PUBLIC_DEMO_HEALING_RUN_LIMIT=3,MAX_AGENT_ITERATIONS=2,MAX_LLM_RETRIES=1,AGENT_RUN_TIMEOUT_SECONDS=60,LLM_TIMEOUT_SECONDS=30,MAX_OUTPUT_TOKENS=1024,APP_ENV=production,PHOENIX_HOST=$PHOENIX_HOST,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_PROJECT_NAME=self-healing-agent,PHOENIX_MCP_PROJECT_IDENTIFIER=self-healing-agent"
 
 echo "Applying Cloud Run scaling settings..."
 gcloud run services update "$SERVICE_NAME" \

@@ -1,24 +1,25 @@
-# 🔧 Self-Healing AI Agent
+# Self-Healing AI Agent
 
 > **"They wake up in the morning, see this in Slack, and their AI already fixed itself overnight."**
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-4285F4?style=for-the-badge&logo=github)](https://salkhan-ops.github.io/self-healing-agent/)
-[![API Backend](https://img.shields.io/badge/API-Cloud%20Run-4285F4?style=for-the-badge&logo=google-cloud)](https://self-healing-agent-274002881656.us-central1.run.app/health)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
 [![Built for](https://img.shields.io/badge/Built%20for-Google%20Cloud%20Rapid%20Agent%20Hackathon-orange?style=for-the-badge)](https://rapid-agent.devpost.com/)
-[![Powered by](https://img.shields.io/badge/Powered%20by-Gemini%202.5%20Flash-blue?style=for-the-badge)](https://ai.google.dev/)
+
+> **Archived:** This was a hackathon submission for the Google Cloud Rapid Agent Hackathon. The public Cloud Run/Phoenix services and Gemini credentials have been shut down. The code remains here as a portfolio/reference project and defaults to local, no-LLM fallback mode.
 
 ---
 
-## 🌐 Live Demo
+## Archive Status
 
-**Flutter Dashboard:** [https://salkhan-ops.github.io/self-healing-agent/](https://salkhan-ops.github.io/self-healing-agent/)
+The live backend is intentionally offline. Local runs default to:
 
-**API Backend:** [https://self-healing-agent-274002881656.us-central1.run.app/health](https://self-healing-agent-274002881656.us-central1.run.app/health)
+```text
+DISABLE_LLM_CALLS=true
+PUBLIC_DEMO_MODE=true
+AGENT_MODE=local
+```
 
-No setup is required. Open the dashboard in any modern browser. Social media post generation and targeted healing are live.
-
-> **Public Demo Note:** The live demo runs in public demo mode. The full multi-agent healing loop is limited in public mode to control API costs. Social media post generation and targeted healing are functional, with per-browser healing limits as a demo cost guardrail. See the demo video for the complete self-healing workflow.
+With these defaults, the app uses local fallback behavior and does not call the Gemini API. Re-enabling live LLM behavior requires explicitly setting `DISABLE_LLM_CALLS=false` and providing a new API key.
 
 ---
 
@@ -236,17 +237,17 @@ All seven steps happen automatically. No human is required.
 
 ---
 
-## 💰 Cost Controls for Public Demo
+## Cost Controls
 
-This project includes safeguards to keep public judging and demo costs predictable while preserving the real self-healing workflow.
+This project was built with public-demo safeguards. The current archived default is stronger: live LLM calls are disabled unless explicitly re-enabled.
 
 ### 1. Static Flutter UI on GitHub Pages
 
-The Flutter web dashboard is deployed as static files to GitHub Pages. Cloud Run hosts only the FastAPI backend. This reduces Cloud Run upload size, avoids serving frontend assets from the backend container, and keeps the public UI inexpensive to host.
+The Flutter web dashboard can be deployed as static files to GitHub Pages. The original public backend has been shut down.
 
 ### 2. Backend-only Cloud Run Deployments
 
-The Cloud Run upload is restricted with `.gcloudignore`, so local Flutter build artifacts, macOS project files, virtual environments, reports, and generated caches are excluded from backend deploys.
+The Cloud Run upload is restricted with `.gcloudignore`, so local Flutter build artifacts, macOS project files, virtual environments, reports, and generated caches are excluded from backend deploys. Deployment scripts now require `ALLOW_ARCHIVED_DEPLOY=true` to avoid accidental restores.
 
 Backend upload dropped to approximately `90KB / 65 files`. This keeps deployments fast and prevents large local files from being uploaded accidentally.
 
@@ -309,7 +310,7 @@ Unsupported hype phrases such as `EPIC`, `revolutionary`, `UNLEASHED`, and `MONU
 - Python 3.12
 - Node.js / npm for Phoenix MCP
 - Flutter for the dashboard UI
-- Google API key from [aistudio.google.com](https://aistudio.google.com)
+- Optional Phoenix local server for trace viewing
 
 ### 1. Clone and install
 
@@ -330,14 +331,16 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-GOOGLE_API_KEY=your_google_api_key_here
-PHOENIX_API_KEY=your_local_phoenix_key
+DISABLE_LLM_CALLS=true
+PUBLIC_DEMO_MODE=true
+AGENT_MODE=local
+GOOGLE_API_KEY=
+PHOENIX_API_KEY=
 PHOENIX_HOST=http://localhost:6006
 PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
 HALLUCINATION_THRESHOLD=0.4
 RELEVANCE_THRESHOLD=0.6
 LATENCY_THRESHOLD_MS=3000
-PUBLIC_DEMO_MODE=false
 ```
 
 ### 3. Start Phoenix
@@ -388,49 +391,24 @@ docker run --env-file .env self-healing-agent
 
 ---
 
-## ☁️ Deploy Backend to Google Cloud Run
+## Deployment
 
-```bash
-gcloud run deploy self-healing-agent \
-  --source . \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars GOOGLE_API_KEY=your_key \
-  --set-env-vars HALLUCINATION_THRESHOLD=0.4 \
-  --set-env-vars RELEVANCE_THRESHOLD=0.6 \
-  --set-env-vars LATENCY_THRESHOLD_MS=3000 \
-  --set-env-vars PUBLIC_DEMO_MODE=true \
-  --set-env-vars PUBLIC_DEMO_AGENT_RUN_LIMIT=2
-```
+The production Cloud Run and Phoenix services have been shut down. Deployment scripts are intentionally guarded and will exit unless `ALLOW_ARCHIVED_DEPLOY=true` is set.
 
----
-
-## 🌍 Deploy Flutter to GitHub Pages
+### Build Flutter Locally
 
 ```bash
 cd dashboard
 flutter build web --release \
-  --dart-define=API_BASE_URL=https://your-cloud-run-url \
-  --dart-define=WS_URL=wss://your-cloud-run-url/ws
-
-# Push dashboard/build/web contents to the gh-pages branch
+  --dart-define=API_BASE_URL=http://localhost:8000 \
+  --dart-define=PUBLIC_DEMO_MODE=true
 ```
 
 ---
 
 ## 🧩 Embed in Any App
 
-```html
-<iframe
-  src="https://self-healing-agent-274002881656.us-central1.run.app/embed/widget"
-  width="360"
-  height="240"
-  style="border:0;border-radius:12px;overflow:hidden"
-  title="Self-Healing Agent Health">
-</iframe>
-```
-
-The widget shows the live health score and latest incident report. It updates automatically.
+The original live embed endpoint is offline with the rest of the backend. The widget code remains in the repo for reference.
 
 ---
 
@@ -513,8 +491,8 @@ self-healing-agent/
 
 **Google Cloud Rapid Agent Hackathon — Arize Track**
 
-- ✅ Powered by Gemini 2.5 Flash
-- ✅ Deployed on Google Cloud Run
+- Built with Gemini 2.5 Flash during the hackathon
+- Originally deployed on Google Cloud Run
 - ✅ Arize Phoenix MCP integration
 - ✅ Multi-step autonomous agent loop
 - ✅ Moves beyond chat — plans, acts, verifies, and reports
